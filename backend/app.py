@@ -14,6 +14,8 @@ from routes.client_routes    import client_bp
 from routes.category_routes  import category_bp
 from routes.sale_routes      import sale_bp
 from routes.dashboard_routes import dashboard_bp
+from routes.user_routes      import user_bp  # ← Déjà importé
+from routes.stock_routes import stock_bp
 
 
 def create_app(config_class=Config):
@@ -34,6 +36,8 @@ def create_app(config_class=Config):
     app.register_blueprint(category_bp,  url_prefix="/api/categories")
     app.register_blueprint(sale_bp,      url_prefix="/api/sales")
     app.register_blueprint(dashboard_bp, url_prefix="/api/dashboard")
+    app.register_blueprint(stock_bp,     url_prefix="/api/stock")
+    app.register_blueprint(user_bp,      url_prefix="/api/users")  # ← AJOUTE CETTE LIGNE !
 
     # ── Gestionnaires d'erreurs globaux ─────────────────────
     @app.errorhandler(404)
@@ -66,6 +70,7 @@ def create_app(config_class=Config):
     @app.route("/api/health")
     def health():
         return jsonify({"status": "ok", "app": "SmartStock ERP"}), 200
+    
     @app.route('/')
     def home():
         return "مرحباً بك في SmartStock ERP!"

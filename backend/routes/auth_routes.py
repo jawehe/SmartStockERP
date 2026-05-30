@@ -49,8 +49,8 @@ def register():
         return error("Un compte avec cet email existe déjà.", status=409)
 
     # Valider le rôle
-    allowed_roles = ("admin", "manager", "cashier")
-    role = data.get("role", "cashier")
+    allowed_roles = ("admin", "manager", "seller")
+    role = data.get("role", "")
     if role not in allowed_roles:
         return error(f"Rôle invalide. Valeurs acceptées : {allowed_roles}")
 

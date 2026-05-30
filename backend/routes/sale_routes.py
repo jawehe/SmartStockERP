@@ -12,7 +12,7 @@
 from flask import Blueprint, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from extensions import db
-from models import Sale, SaleItem, Product, Client
+from models import Sale, SaleItem, Product, Client, StockMovement
 from utils.helpers import success, error, validate_required, paginate_query, role_required
 
 sale_bp = Blueprint("sales", __name__)
@@ -66,7 +66,7 @@ def get_sale(sale_id):
 
 
 # ─────────────────────────────────────────────────────────────
-#  POST /api/sales  (TRANSACTION ATOMIQUE)
+#  POST /api/sales  (TRANSACTION ATOMIQUE AVEC STOCK MOVEMENT)
 # ─────────────────────────────────────────────────────────────
 @sale_bp.route("", methods=["POST"])
 @jwt_required()
@@ -76,8 +76,8 @@ def create_sale():
 
     Body JSON :
     {
-      "client_id": 3,           // optionnel (vente anonyme)
-      "note": "...",            // optionnel
+      "client_id": 3,
+      "note": "...",
       "items": [
         { "product_id": 1, "quantity": 2 },
         { "product_id": 5, "quantity": 1 }
@@ -88,12 +88,11 @@ def create_sale():
       1. Valider le payload
       2. Vérifier l'existence et le stock de chaque produit
       3. Créer la ligne Sale
-      4. Créer chaque SaleItem (avec unit_price figé au moment de la vente)
+      4. Créer chaque SaleItem
       5. Déduire le stock de chaque produit
-      6. Calculer et sauvegarder le total
-      7. COMMIT ou ROLLBACK si n'importe quelle étape échoue
-
-    En cas d'échec : rollback complet, aucune donnée n'est modifiée.
+      6. Créer un mouvement StockMovement pour chaque produit (type: OUT)
+      7. Calculer et sauvegarder le total
+      8. COMMIT ou ROLLBACK si n'importe quelle étape échoue
     """
     data    = request.get_json(silent=True) or {}
     user_id = int(get_jwt_identity())
@@ -138,7 +137,7 @@ def create_sale():
             )
         items_data.append({"product": product, "quantity": qty})
 
-    # ── 3-7. Transaction atomique ────────────────────────────
+    # ── 3-8. Transaction atomique ────────────────────────────
     try:
         # Créer la vente (entête)
         sale = Sale(
@@ -155,7 +154,7 @@ def create_sale():
         for entry in items_data:
             product  = entry["product"]
             qty      = entry["quantity"]
-            price    = float(product.price)  # prix figé au moment de la vente
+            price    = float(product.price)
             subtotal = round(price * qty, 2)
 
             # Créer la ligne de vente
@@ -170,6 +169,15 @@ def create_sale():
 
             # Déduire le stock
             product.adjust_stock(-qty)
+
+            # ✨ AJOUT : Enregistrer le mouvement de stock (OUT)
+            movement = StockMovement(
+                product_id=product.id,
+                movement_type="OUT",
+                quantity=qty,
+                note=f"Sale #{sale.id} - {product.name}"
+            )
+            db.session.add(movement)
 
             total += subtotal
 
@@ -206,7 +214,9 @@ def update_sale_status(sale_id):
     Changer le statut d'une vente.
     Body JSON : { "status": "cancelled" }
 
-    Si passage à "cancelled" : remise en stock automatique des produits.
+    Si passage à "cancelled" : 
+      - remise en stock automatique des produits
+      - ajout d'un mouvement de stock (IN) pour chaque produit
     """
     sale   = Sale.query.get_or_404(sale_id)
     data   = request.get_json(silent=True) or {}
@@ -223,10 +233,20 @@ def update_sale_status(sale_id):
         return error("Une vente annulée ne peut pas être modifiée.")
 
     try:
-        # Annulation → remettre le stock
+        # Annulation → remettre le stock et ajouter mouvement IN
         if status == "cancelled":
             for item in sale.sale_items:
+                # Remettre le stock
                 item.product.adjust_stock(+item.quantity)
+                
+                # ✨ AJOUT : Enregistrer le mouvement de stock (IN)
+                movement = StockMovement(
+                    product_id=item.product_id,
+                    movement_type="IN",
+                    quantity=item.quantity,
+                    note=f"Sale #{sale.id} cancelled - Stock restored"
+                )
+                db.session.add(movement)
 
         sale.status = status
         db.session.commit()
@@ -257,7 +277,17 @@ def delete_sale(sale_id):
     try:
         if sale.status == "completed":
             for item in sale.sale_items:
+                # Remettre le stock
                 item.product.adjust_stock(+item.quantity)
+                
+                # ✨ AJOUT : Enregistrer le mouvement de stock (IN)
+                movement = StockMovement(
+                    product_id=item.product_id,
+                    movement_type="IN",
+                    quantity=item.quantity,
+                    note=f"Sale #{sale.id} deleted by admin - Stock restored"
+                )
+                db.session.add(movement)
 
         db.session.delete(sale)
         db.session.commit()

@@ -23,7 +23,7 @@ function Avatar({ name }: { name: string }) {
   return (
     <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold shrink-0"
       style={{ background: color }}>
-      {initials}
+      {initials || '?'}
     </div>
   )
 }
@@ -33,58 +33,80 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true)
   const [open, setOpen]       = useState(false)
   const [editing, setEditing] = useState<User | null>(null)
-  const [form, setForm]       = useState<UserForm>({ name:'', email:'', password:'', role:'cashier' })
+  const [form, setForm]       = useState<UserForm>({ name:'', email:'', password:'', role:'seller' })
   const [saving, setSaving]   = useState(false)
   const [error, setError]     = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      // Assuming admin endpoint — adapt URL if needed
       const res = await api.get<{ data: User[] }>('/users')
       setUsers(res.data.data ?? [])
-    } catch { setUsers([]) }
-    finally { setLoading(false) }
+    } catch (err) {
+      console.error('Error loading users:', err)
+      setUsers([])
+    } finally { 
+      setLoading(false) 
+    }
   }, [])
 
 useEffect(() => {
-  const run = async () => {
-    await load();
-  };
-
-  run();
-}, []);
+  const fetchData = async () => {
+    await load()
+  }
+  fetchData()
+}, [load])
 
   const setF = (k: keyof UserForm) =>
     (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       setForm((prev) => ({ ...prev, [k]: e.target.value }))
 
   const openAdd = () => {
-    setEditing(null); setForm({ name:'', email:'', password:'', role:'seller' })
-    setError(''); setOpen(true)
+    setEditing(null)
+    setForm({ name:'', email:'', password:'', role:'seller' })
+    setError('')
+    setOpen(true)
   }
+
   const openEdit = (u: User) => {
-    setEditing(u); setForm({ name:u.name, email:u.email, password:'', role:u.role })
-    setError(''); setOpen(true)
+    setEditing(u)
+    setForm({ name:u.name, email:u.email, password:'', role:u.role })
+    setError('')
+    setOpen(true)
   }
 
   const save = async (e: FormEvent) => {
-    e.preventDefault(); setSaving(true); setError('')
+    e.preventDefault()
+    setSaving(true)
+    setError('')
     try {
-      if (editing) await api.put(`/users/${editing.id}`, { name: form.name, role: form.role })
-      else         await api.post('/auth/register', form)
-      setOpen(false); load().catch(console.error)
+      if (editing) {
+        await api.put(`/users/${editing.id}`, { name: form.name, role: form.role })
+      } else {
+        await api.post('/auth/register', form)
+      }
+      setOpen(false)
+      await load()
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'Erreur'
+      // ✅ CORRIGÉ : Type assertion pour error
+      const error = err as { response?: { data?: { message?: string } } }
+      const msg = error.response?.data?.message ?? 'Erreur lors de l\'opération'
       setError(msg)
-    } finally { setSaving(false) }
+    } finally { 
+      setSaving(false) 
+    }
   }
 
   const del = async (id: number, name: string) => {
     if (!window.confirm(`Supprimer l'utilisateur "${name}" ?`)) return
-    try { await api.delete(`/users/${id}`); load().catch(console.error) }
-    catch (err: unknown) {
-      alert((err as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'Erreur')
+    try { 
+      await api.delete(`/users/${id}`)
+      await load()
+    } catch (err: unknown) {
+      // ✅ CORRIGÉ : Type assertion pour error
+      const error = err as { response?: { data?: { message?: string } } }
+      const msg = error.response?.data?.message ?? 'Erreur lors de la suppression'
+      alert(msg)
     }
   }
 
@@ -136,33 +158,35 @@ useEffect(() => {
               </td></tr>
             ) : users.length === 0 ? (
               <tr><td colSpan={5} className="text-center py-12 text-sm text-[#9aa5bf]">Aucun utilisateur trouvé</td></tr>
-            ) : users.map((u) => (
-              <tr key={u.id} className="border-b border-[#e4e9f0] last:border-0 hover:bg-gray-50/50 transition-colors">
-                <td className="px-4 py-3.5">
-                  <div className="flex items-center gap-2.5">
-                    <Avatar name={u.name} />
-                    <span className="font-medium text-sm text-[#1a2e4a]">{u.name}</span>
-                  </div>
-                </td>
-                <td className="px-4 py-3.5 text-sm text-[#6b7a99]">{u.email}</td>
-                <td className="px-4 py-3.5">
-                  <Badge variant={ROLE_BADGE[u.role as Role] ?? 'default'} size="md">
-                    {u.role}
-                  </Badge>
-                </td>
-                <td className="px-4 py-3.5 text-sm text-[#6b7a99]">
-                  {new Date(u.created_at).toLocaleDateString('fr-FR')}
-                </td>
-                <td className="px-4 py-3.5">
-                  <div className="flex gap-2">
-                    <button onClick={() => openEdit(u)}
-                      className="text-sm text-[#9aa5bf] hover:text-[#1e4db7] transition-colors">✏</button>
-                    <button onClick={() => void del(u.id, u.name)}
-                      className="text-sm text-[#9aa5bf] hover:text-red-500 transition-colors">🗑</button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+            ) : (
+              users.map((u) => (
+                <tr key={u.id} className="border-b border-[#e4e9f0] last:border-0 hover:bg-gray-50/50 transition-colors">
+                  <td className="px-4 py-3.5">
+                    <div className="flex items-center gap-2.5">
+                      <Avatar name={u.name} />
+                      <span className="font-medium text-sm text-[#1a2e4a]">{u.name}</span>
+                    </div>
+                   </td>
+                  <td className="px-4 py-3.5 text-sm text-[#6b7a99]">{u.email}</td>
+                  <td className="px-4 py-3.5">
+                    <Badge variant={ROLE_BADGE[u.role as Role] ?? 'default'} size="md">
+                      {u.role}
+                    </Badge>
+                   </td>
+                  <td className="px-4 py-3.5 text-sm text-[#6b7a99]">
+                    {u.created_at ? new Date(u.created_at).toLocaleDateString('fr-FR') : '-'}
+                   </td>
+                  <td className="px-4 py-3.5">
+                    <div className="flex gap-2">
+                      <button onClick={() => openEdit(u)}
+                        className="text-sm text-[#9aa5bf] hover:text-[#1e4db7] transition-colors">✏</button>
+                      <button onClick={() => del(u.id, u.name)}
+                        className="text-sm text-[#9aa5bf] hover:text-red-500 transition-colors">🗑</button>
+                    </div>
+                   </td>
+                 </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -175,7 +199,7 @@ useEffect(() => {
         footer={
           <>
             <Button variant="secondary" onClick={() => setOpen(false)}>Annuler</Button>
-            <Button loading={saving} onClick={(e) => void save(e as unknown as FormEvent)}>
+            <Button loading={saving} onClick={(e) => save(e as unknown as FormEvent)}>
               {editing ? 'Modifier' : 'Créer'}
             </Button>
           </>

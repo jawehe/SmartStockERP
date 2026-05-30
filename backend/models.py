@@ -20,8 +20,8 @@ class User(db.Model):
     name          = db.Column(db.String(100), nullable=False)
     email         = db.Column(db.String(150), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
-    role          = db.Column(db.Enum("admin", "manager", "cashier"),
-                              nullable=False, default="cashier")
+    role          = db.Column(db.Enum("admin", "manager", "seller"),
+                              nullable=False, default="seller")
     created_at    = db.Column(db.DateTime, default=now_utc, nullable=False)
 
     sales = db.relationship("Sale", back_populates="user", lazy="dynamic")
@@ -199,7 +199,7 @@ class Sale(db.Model):
             "sale_date":    self.sale_date.isoformat(),
             "client":       {"id": self.client_id,
                              "name": self.client.name} if self.client else None,
-            "cashier":      {"id": self.user_id,
+            "seller":      {"id": self.user_id,
                              "name": self.user.name}   if self.user   else None,
         }
         if include_items:
@@ -239,3 +239,51 @@ class SaleItem(db.Model):
 
     def __repr__(self):
         return f"<SaleItem sale={self.sale_id} product={self.product_id}>"
+    
+class StockMovement(db.Model):
+    __tablename__ = "stock_movements"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    product_id = db.Column(
+        db.Integer,
+        db.ForeignKey("products.id"),
+        nullable=False
+    )
+
+    movement_type = db.Column(
+        db.String(20),
+        nullable=False
+    )  # IN / OUT / ADJUSTMENT
+
+    quantity = db.Column(
+        db.Integer,
+        nullable=False
+    )
+
+    note = db.Column(
+        db.String(255)
+    )
+
+    created_at = db.Column(
+        db.DateTime,
+        default=datetime.utcnow
+    )
+
+    product = db.relationship(
+        "Product",
+        backref="movements"
+    )
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "product_id": self.product_id,
+            "product_name": self.product.name if self.product else None,
+            "movement_type": self.movement_type,
+            "quantity": self.quantity,
+            "note": self.note,
+            "created_at": self.created_at.isoformat()
+        }
+
+    

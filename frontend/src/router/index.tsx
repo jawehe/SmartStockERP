@@ -27,6 +27,7 @@ import SettingsPage from '../pages/shared/SettingsPage'
 import { useAuth } from '../hooks/useAuth'
 import { dashboardPathForRole } from './routeConfig'
 import ProfilePage from '../pages/shared/ProfilePage'
+import InventoryPage from '@/pages/shared/InventoryPage'
 
 function RootRedirect() {
   const { user, loading } = useAuth()
@@ -143,6 +144,14 @@ export default function AppRouter() {
   element={
     <RoleGuard roles={['admin', 'manager', 'seller']}>
       <ProfilePage />
+    </RoleGuard>
+  } 
+/>
+<Route 
+  path="/inventory" 
+  element={
+    <RoleGuard roles={['admin', 'manager']}>
+      <InventoryPage />
     </RoleGuard>
   } 
 />
