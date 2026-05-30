@@ -1,122 +1,148 @@
 // src/router/index.tsx
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { ProtectedRoute }  from '../components/guards/ProtectedRoute'
-import { RoleGuard }       from '../components/guards/RoleGuard'
+import { ProtectedRoute } from '../components/guards/ProtectedRoute'
+import { RoleGuard } from '../components/guards/RoleGuard'
+import AppLayout from '../components/layout/AppLayout'  // ← Garde AppLayout
 
 // Auth pages
-import LoginPage    from '../pages/auth/LoginPage'
+import LoginPage from '../pages/auth/LoginPage'
 import RegisterPage from '../pages/auth/RegisterPage'
 import ForgotPassword from '../pages/auth/ForgetPassword'
 
 // Admin pages
 import AdminDashboard from '../pages/admin/AdminDashboard'
-import UsersPage      from '../pages/admin/UsersPage'
-
-// Manager pages
-//import ManagerDashboard from '../pages/manager/ManagerDashboard'
+import UsersPage from '../pages/admin/UsersPage'
 
 // Seller pages
 import SellerDashboard from '../pages/seller/SellerDashboard'
 
 // Shared pages
-import ProductsPage  from '../pages/shared/ProductsPage'
-import ClientsPage   from '../pages/shared/ClientsPage'
-import SalesPage     from '../pages/shared/SalesPage'
+import ProductsPage from '../pages/shared/ProductsPage'
+import ClientsPage from '../pages/shared/ClientsPage'
+import SalesPage from '../pages/shared/SalesPage'
 import AnalyticsPage from '../pages/shared/AnalyticsPage'
+import SupportPage from '../pages/shared/SupportPage'
+import SettingsPage from '../pages/shared/SettingsPage'
 
-// ── Smart redirect after login ───────────────────────────────
 import { useAuth } from '../hooks/useAuth'
+import { dashboardPathForRole } from './routeConfig'
 
 function RootRedirect() {
   const { user, loading } = useAuth()
   if (loading) return null
-  if (!user)   return <Navigate to="/login" replace />
-  switch (user.role) {
-    case 'admin':   return <Navigate to="/admin/dashboard"   replace />
-    case 'manager': return <Navigate to="/manager/dashboard" replace />
-    case 'seller':  return <Navigate to="/seller/dashboard"  replace />
-    default:        return <Navigate to="/login"             replace />
-  }
+  if (!user) return <Navigate to="/login" replace />
+  
+  const dashboardPath = dashboardPathForRole(user.role)
+  return <Navigate to={dashboardPath} replace />
 }
 
-// ── Public guard — redirect to dashboard if already logged in
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
   if (loading) return null
-  if (user)    return <RootRedirect />
+  if (user) return <RootRedirect />
   return <>{children}</>
 }
 
 export default function AppRouter() {
   return (
     <Routes>
-      {/* ── Public ──────────────────────────────────────── */}
-      <Route path="/login"    element={<PublicRoute><LoginPage /></PublicRoute>} />
+      {/* Public routes */}
+      <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
       <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
       <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
 
-      {/* ── Admin routes ────────────────────────────────── */}
-      <Route path="/admin/dashboard" element={
-        <ProtectedRoute>
-          <RoleGuard roles={['admin']}>
-            <AdminDashboard />
-          </RoleGuard>
-        </ProtectedRoute>
-      } />
+      {/* Protected routes */}
+      <Route element={<ProtectedRoute />}>
+        <Route element={<AppLayout />}>  {/* ← Garde AppLayout */}
+          {/* Admin routes */}
+          <Route 
+            path="/admin/dashboard" 
+            element={
+              <RoleGuard roles={['admin']}>
+                <AdminDashboard />
+              </RoleGuard>
+            } 
+          />
+          
+          <Route 
+            path="/admin/users" 
+            element={
+              <RoleGuard roles={['admin']}>
+                <UsersPage />
+              </RoleGuard>
+            } 
+          />
 
-      <Route path="/admin/users" element={
-        <ProtectedRoute>
-          <RoleGuard roles={['admin']}>
-            <UsersPage />
-          </RoleGuard>
-        </ProtectedRoute>
-      } />
+          {/* Seller routes */}
+          <Route 
+            path="/seller/dashboard" 
+            element={
+              <RoleGuard roles={['seller']}>
+                <SellerDashboard />
+              </RoleGuard>
+            } 
+          />
 
-      {/* ── Seller routes ───────────────────────────────── */}
-      <Route path="/seller/dashboard" element={
-        <ProtectedRoute>
-          <RoleGuard roles={['seller']}>
-            <SellerDashboard />
-          </RoleGuard>
-        </ProtectedRoute>
-      } />
+          {/* Shared routes */}
+          <Route 
+            path="/products" 
+            element={
+              <RoleGuard roles={['admin', 'manager', 'seller']}>
+                <ProductsPage />
+              </RoleGuard>
+            } 
+          />
 
-      {/* ── Shared routes (all roles) ────────────────────── */}
-      <Route path="/products" element={
-        <ProtectedRoute>
-          <RoleGuard roles={['admin','manager','seller']}>
-            <ProductsPage />
-          </RoleGuard>
-        </ProtectedRoute>
-      } />
+          <Route 
+            path="/clients" 
+            element={
+              <RoleGuard roles={['admin', 'manager', 'seller']}>
+                <ClientsPage />
+              </RoleGuard>
+            } 
+          />
 
-      <Route path="/clients" element={
-        <ProtectedRoute>
-          <RoleGuard roles={['admin','manager','seller']}>
-            <ClientsPage />
-          </RoleGuard>
-        </ProtectedRoute>
-      } />
+          <Route 
+            path="/sales" 
+            element={
+              <RoleGuard roles={['admin', 'manager', 'seller']}>
+                <SalesPage />
+              </RoleGuard>
+            } 
+          />
 
-      <Route path="/sales" element={
-        <ProtectedRoute>
-          <RoleGuard roles={['admin','manager','seller']}>
-            <SalesPage />
-          </RoleGuard>
-        </ProtectedRoute>
-      } />
+          <Route 
+            path="/analytics" 
+            element={
+              <RoleGuard roles={['admin', 'manager']}>
+                <AnalyticsPage />
+              </RoleGuard>
+            } 
+          />
 
-      <Route path="/analytics" element={
-        <ProtectedRoute>
-          <RoleGuard roles={['admin','manager']}>
-            <AnalyticsPage />
-          </RoleGuard>
-        </ProtectedRoute>
-      } />
+          <Route 
+            path="/support" 
+            element={
+              <RoleGuard roles={['admin', 'manager', 'seller']}>
+                <SupportPage />
+              </RoleGuard>
+            } 
+          />
 
-      {/* ── Root redirect ────────────────────────────────── */}
-      <Route path="/"  element={<RootRedirect />} />
-      <Route path="*"  element={<RootRedirect />} />
+          <Route 
+            path="/settings" 
+            element={
+              <RoleGuard roles={['admin', 'manager']}>
+                <SettingsPage />
+              </RoleGuard>
+            } 
+          />
+        </Route>
+      </Route>
+
+      {/* Root redirect */}
+      <Route path="/" element={<RootRedirect />} />
+      <Route path="*" element={<RootRedirect />} />
     </Routes>
   )
 }

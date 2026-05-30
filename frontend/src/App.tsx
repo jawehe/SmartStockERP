@@ -1,13 +1,16 @@
+// src/App.tsx
 import { BrowserRouter } from 'react-router-dom'
 import { AuthProvider } from './context/AuthProvider'
 import AppRouter from './router'
 
-export default function App() {
+function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
+    <BrowserRouter>
+      <AuthProvider>
         <AppRouter />
-      </BrowserRouter>
-    </AuthProvider>
+      </AuthProvider>
+    </BrowserRouter>
   )
 }
+
+export default App

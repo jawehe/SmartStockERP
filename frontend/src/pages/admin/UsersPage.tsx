@@ -33,7 +33,7 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true)
   const [open, setOpen]       = useState(false)
   const [editing, setEditing] = useState<User | null>(null)
-  const [form, setForm]       = useState<UserForm>({ name:'', email:'', password:'', role:'seller' })
+  const [form, setForm]       = useState<UserForm>({ name:'', email:'', password:'', role:'cashier' })
   const [saving, setSaving]   = useState(false)
   const [error, setError]     = useState('')
 

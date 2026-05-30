@@ -1,8 +1,8 @@
 // src/components/layout/Sidebar.tsx
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useAuth } from '../../hooks/useAuth'
-import { NAV_ITEMS, dashboardPathForRole } from '../../router/routeConfig.ts'
-import type { Role } from '../../types/permissions'
+import { useAuth } from '../../hooks/useAuth'  // ← Corrigé: 3 points
+import { NAV_ITEMS, dashboardPathForRole } from '../../router/routeConfig'  // ← Corrigé: 3 points
+import type { Role } from '../../types/permissions'  // ← Corrigé: 3 points
 
 export default function Sidebar() {
   const { user, logout } = useAuth()
@@ -19,15 +19,16 @@ export default function Sidebar() {
     return location.pathname === path || location.pathname.startsWith(path + '/')
   }
 
-  // Handle dashboard click - navigate to role-specific dashboard
   const handleDashboardClick = () => {
     if (user) {
       navigate(dashboardPathForRole(user.role as Role))
     }
   }
 
+  // ✅ Corrigé: Ajout du type string
   const initials = user?.name
-    ?.split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase() ?? 'U'
+    ?.split(' ').slice(0, 2).map((n: string) => n[0]).join('').toUpperCase() ?? 
+    user?.email?.charAt(0).toUpperCase() ?? 'U'
 
   const roleColor: Record<string, string> = {
     admin:   'text-red-400',
@@ -51,7 +52,7 @@ export default function Sidebar() {
         </button>
       </div>
 
-      {/* Nav items */}
+      {/* Nav items - tout est dans NAV_ITEMS (Dashboard, Products, Clients, Sales, Analytics, Users, Support, Settings) */}
       <nav className="flex-1 px-3 py-4 flex flex-col gap-0.5 overflow-y-auto">
         {menuItems.map((item) => (
           <button 
@@ -67,20 +68,11 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Bottom: settings + user */}
+      {/* Bottom section - Supprimé les doublons Settings et Support */}
       <div className="px-3 pb-4">
-        <button
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-[#8fa3bc] hover:bg-white/5 hover:text-white transition-all">
-          <span>⚙</span>Settings
-        </button>
-        
-        <button
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-[#8fa3bc] hover:bg-white/5 hover:text-white transition-all">
-          <span>?</span>Support
-        </button>
-
+        {/* Seulement Add New Entry et User pill */}
         <button onClick={() => navigate('/sales')}
-          className="w-full mt-2 py-2.5 bg-[#1e4db7] hover:bg-[#1a3fa0] text-white rounded-lg text-sm font-medium transition-colors">
+          className="w-full py-2.5 bg-[#1e4db7] hover:bg-[#1a3fa0] text-white rounded-lg text-sm font-medium transition-colors">
           + Add New Entry
         </button>
 
