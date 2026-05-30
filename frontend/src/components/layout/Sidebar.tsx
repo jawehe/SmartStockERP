@@ -1,8 +1,8 @@
 // src/components/layout/Sidebar.tsx
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useAuth } from '../../hooks/useAuth'  // ← Corrigé: 3 points
-import { NAV_ITEMS, dashboardPathForRole } from '../../router/routeConfig'  // ← Corrigé: 3 points
-import type { Role } from '../../types/permissions'  // ← Corrigé: 3 points
+import { useAuth } from '../../hooks/useAuth'
+import { NAV_ITEMS, dashboardPathForRole } from '../../router/routeConfig'
+import type { Role } from '../../types/permissions'
 
 export default function Sidebar() {
   const { user, logout } = useAuth()
@@ -25,7 +25,10 @@ export default function Sidebar() {
     }
   }
 
-  // ✅ Corrigé: Ajout du type string
+  const handleUserClick = () => {
+    navigate('/profile')
+  }
+
   const initials = user?.name
     ?.split(' ').slice(0, 2).map((n: string) => n[0]).join('').toUpperCase() ?? 
     user?.email?.charAt(0).toUpperCase() ?? 'U'
@@ -52,7 +55,7 @@ export default function Sidebar() {
         </button>
       </div>
 
-      {/* Nav items - tout est dans NAV_ITEMS (Dashboard, Products, Clients, Sales, Analytics, Users, Support, Settings) */}
+      {/* Nav items */}
       <nav className="flex-1 px-3 py-4 flex flex-col gap-0.5 overflow-y-auto">
         {menuItems.map((item) => (
           <button 
@@ -68,29 +71,34 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Bottom section - Supprimé les doublons Settings et Support */}
+      {/* Bottom section */}
       <div className="px-3 pb-4">
-        {/* Seulement Add New Entry et User pill */}
         <button onClick={() => navigate('/sales')}
           className="w-full py-2.5 bg-[#1e4db7] hover:bg-[#1a3fa0] text-white rounded-lg text-sm font-medium transition-colors">
           + Add New Entry
         </button>
 
-        {/* User pill */}
-        <div className="mt-3 flex items-center gap-2.5 px-2 py-2 rounded-lg border border-white/10">
+        {/* User pill - maintenant cliquable pour aller au profile */}
+        <button 
+          onClick={handleUserClick}
+          className="mt-3 w-full flex items-center gap-2.5 px-2 py-2 rounded-lg border border-white/10 hover:bg-white/5 transition-all cursor-pointer">
           <div className="w-8 h-8 rounded-full bg-[#1e4db7] flex items-center justify-center text-white text-xs font-semibold shrink-0">
             {initials}
           </div>
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 text-left">
             <div className="text-white text-xs font-medium truncate">{user?.name || user?.email}</div>
             <div className={`text-[10px] capitalize font-medium ${roleColor[user?.role ?? ''] ?? 'text-[#8fa3bc]'}`}>
               {user?.role}
             </div>
           </div>
-          <button onClick={logout}
-            className="text-[#8fa3bc] hover:text-white transition-colors text-sm"
+          <button 
+            onClick={(e) => {
+              e.stopPropagation() // Empêche la navigation quand on clique sur logout
+              logout()
+            }}
+            className="text-[#8fa3bc] hover:text-white transition-colors text-sm z-10"
             title="Logout">⏻</button>
-        </div>
+        </button>
       </div>
     </aside>
   )

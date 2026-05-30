@@ -26,6 +26,7 @@ import SettingsPage from '../pages/shared/SettingsPage'
 
 import { useAuth } from '../hooks/useAuth'
 import { dashboardPathForRole } from './routeConfig'
+import ProfilePage from '../pages/shared/ProfilePage'
 
 function RootRedirect() {
   const { user, loading } = useAuth()
@@ -137,6 +138,14 @@ export default function AppRouter() {
               </RoleGuard>
             } 
           />
+          <Route 
+  path="/profile" 
+  element={
+    <RoleGuard roles={['admin', 'manager', 'seller']}>
+      <ProfilePage />
+    </RoleGuard>
+  } 
+/>
         </Route>
       </Route>
 

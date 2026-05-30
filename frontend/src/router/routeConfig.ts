@@ -18,8 +18,11 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Clients',    path: '/clients',           icon: '◎', roles: ['admin','manager','seller']  },
   { label: 'Sales',      path: '/sales',             icon: '◈', roles: ['admin','manager','seller']  },
   { label: 'Analytics',  path: '/analytics',         icon: '⬡', roles: ['admin','manager']           },
+  
   // ── Admin only ───────────────────────────────────────────
   { label: 'Users',      path: '/admin/users',       icon: '⊕', roles: ['admin']                    },
+  { label: 'Support',    path: '/support',           icon: '?', roles: ['admin','manager','seller'] },
+  { label: 'Settings',   path: '/settings',          icon: '⚙', roles: ['admin','manager','seller'] },
 ]
 
 /** Retourne le path du dashboard selon le rôle */
