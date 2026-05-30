@@ -53,9 +53,7 @@ export default function AppRouter() {
       {/* ── Public ──────────────────────────────────────── */}
       <Route path="/login"    element={<PublicRoute><LoginPage /></PublicRoute>} />
       <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
-      <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>
-  }
-/>
+      <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
 
       {/* ── Admin routes ────────────────────────────────── */}
       <Route path="/admin/dashboard" element={
@@ -73,8 +71,6 @@ export default function AppRouter() {
           </RoleGuard>
         </ProtectedRoute>
       } />
-
-    
 
       {/* ── Seller routes ───────────────────────────────── */}
       <Route path="/seller/dashboard" element={

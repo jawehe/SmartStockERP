@@ -47,7 +47,13 @@ export default function UsersPage() {
     finally { setLoading(false) }
   }, [])
 
-  useEffect(() => { load().catch(console.error) }, [load])
+useEffect(() => {
+  const run = async () => {
+    await load();
+  };
+
+  run();
+}, []);
 
   const setF = (k: keyof UserForm) =>
     (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>

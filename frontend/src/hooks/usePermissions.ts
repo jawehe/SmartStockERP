@@ -3,9 +3,12 @@ import { useAuth } from './useAuth'
 
 export function usePermissions() {
   const { can, user, isAdmin, isManager, isSeller } = useAuth()
+  
   return {
     can,
-    isAdmin, isManager, isSeller,
+    isAdmin, 
+    isManager, 
+    isSeller,
     canCreateSale:    can('create:sale'),
     canDeleteSale:    can('delete:sale'),
     canManageStock:   can('adjust:stock'),
