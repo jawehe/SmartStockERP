@@ -12,6 +12,8 @@ import ForgotPassword from '../pages/auth/ForgetPassword'
 // Admin pages
 import AdminDashboard from '../pages/admin/AdminDashboard'
 import UsersPage from '../pages/admin/UsersPage'
+// Manager pages 
+import ManagerDashboard from '../pages/manager/ManagerDashboard'
 
 // Seller pages
 import SellerDashboard from '../pages/seller/SellerDashboard'
@@ -71,6 +73,14 @@ export default function AppRouter() {
             element={
               <RoleGuard roles={['admin']}>
                 <UsersPage />
+              </RoleGuard>
+            } 
+          />
+          <Route 
+            path="/manager/dashboard" 
+            element={
+              <RoleGuard roles={['manager']}>
+                <ManagerDashboard />
               </RoleGuard>
             } 
           />

@@ -85,7 +85,7 @@ class Product(db.Model):
     category   = db.relationship("Category", back_populates="products")
     sale_items = db.relationship("SaleItem",  back_populates="product",
                                  lazy="dynamic")
-
+    stock_movements = db.relationship( "StockMovement", back_populates="product", lazy="dynamic" )
     def is_low_stock(self):
         return self.stock_quantity <= self.low_stock_threshold
 
@@ -267,13 +267,13 @@ class StockMovement(db.Model):
 
     created_at = db.Column(
         db.DateTime,
-        default=datetime.utcnow
+        default=now_utc
     )
 
     product = db.relationship(
-        "Product",
-        backref="movements"
-    )
+    "Product",
+    back_populates="stock_movements"
+)
 
     def to_dict(self):
         return {
@@ -286,4 +286,5 @@ class StockMovement(db.Model):
             "created_at": self.created_at.isoformat()
         }
 
-    
+    def __repr__(self):
+      return f"<StockMovement {self.movement_type} {self.quantity}>"

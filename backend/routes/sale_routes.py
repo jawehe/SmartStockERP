@@ -140,11 +140,13 @@ def create_sale():
     # ── 3-8. Transaction atomique ────────────────────────────
     try:
         # Créer la vente (entête)
+        raw_note = data.get("note")
+        note_value = raw_note.strip() if raw_note and isinstance(raw_note, str) else None
         sale = Sale(
             client_id=client_id,
             user_id=user_id,
             status="completed",
-            note=data.get("note", "").strip() or None,
+            note=note_value,
         )
         db.session.add(sale)
         db.session.flush()  # obtenir sale.id avant le commit
@@ -275,7 +277,7 @@ def delete_sale(sale_id):
     sale = Sale.query.get_or_404(sale_id)
 
     try:
-        if sale.status == "completed":
+        if sale.status != "cancelled":
             for item in sale.sale_items:
                 # Remettre le stock
                 item.product.adjust_stock(+item.quantity)
