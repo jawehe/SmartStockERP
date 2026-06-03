@@ -200,7 +200,52 @@ setReload((n) => n + 1) }
 
   const lowCount = products.filter((p) => p.is_low_stock).length
   const outCount = products.filter((p) => p.stock_quantity === 0).length
-
+// src/pages/shared/ProductsPage.tsx
+const exportToCSV = async () => {
+  try {
+    // Utiliser les filtres actuels
+    const params = new URLSearchParams()
+    if (search) params.set('search', search)
+    if (catFilter) params.set('category_id', catFilter)
+    if (lowOnly) params.set('low_stock', 'true')
+    params.set('per_page', '1000')
+    
+    const response = await api.get(`/products?${params.toString()}`)
+    const products = response.data.data || response.data || []
+    
+    const headers = ['ID', 'Name', 'SKU', 'Price', 'Stock', 'Status', 'Category']
+    
+    const rows: (string | number)[][] = products.map((product: Product) => [
+      product.id,
+      product.name,
+      product.sku,
+      product.price,
+      product.stock_quantity,
+      product.stock_quantity <= product.low_stock_threshold ? '⚠️ Low Stock' : '✅ In Stock',
+      product.category_name || ''
+    ])
+    
+    const csvContent = [
+      headers.join(','),
+      ...rows.map((row: (string | number)[]) => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n')
+    
+    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `products_filtered_${new Date().toISOString().split('T')[0]}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    
+    alert(`Export CSV réussi ✅ (${products.length} produits)` )
+  } catch (error) {
+    console.error('Export error:', error)
+    alert('Erreur lors de l\'export CSV')
+  }
+}
   return (
     <div>
       {/* Header */}
@@ -210,7 +255,7 @@ setReload((n) => n + 1) }
           <p className="text-sm text-[#6b7a99] mt-0.5">Manage and track enterprise assets across all warehouses.</p>
         </div>
         <div className="flex gap-2.5">
-          <Button variant="secondary" icon="↓">Export CSV</Button>
+         <Button variant="secondary" icon="↓" onClick={exportToCSV}>Export CSV</Button>
           {canCreateProduct && <Button icon="⊕" onClick={openAdd}>Add Product</Button>}
         </div>
       </div>

@@ -18,9 +18,12 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Clients',    path: '/clients',           icon: '◎', roles: ['admin','manager','seller']  },
   { label: 'Sales',      path: '/sales',             icon: '◈', roles: ['admin','manager','seller']  },
   { label: 'Analytics',  path: '/analytics',         icon: '⬡', roles: ['admin','manager']           },
+   { label: 'Inventory',   path: '/inventory',          icon: '📦', roles: ['admin','manager'] },
+  { label: 'Suppliers',   path: '/suppliers',   icon: '🏭', roles: ['admin', 'manager'] },
+  { label: 'Purchases',   path: '/purchases',   icon: '📦', roles: ['admin', 'manager'] }, 
   { label: 'Support',    path: '/support',           icon: '?', roles: ['admin','manager','seller'] },
-  { label: 'Settings',   path: '/settings',          icon: '⚙', roles: ['admin','manager','seller'] },
-  { label: 'Inventory',   path: '/inventory',          icon: '📦', roles: ['admin','manager'] },
+  { label: 'Settings',   path: '/settings',          icon: '⚙', roles: ['admin'] },
+ 
   
   // ── Admin only ───────────────────────────────────────────
   { label: 'Users',      path: '/admin/users',       icon: '⊕', roles: ['admin']                    },

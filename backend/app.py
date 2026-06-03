@@ -16,6 +16,8 @@ from routes.sale_routes      import sale_bp
 from routes.dashboard_routes import dashboard_bp
 from routes.user_routes      import user_bp  # ← Déjà importé
 from routes.stock_routes import stock_bp
+from routes.supplier_routes import supplier_bp
+from routes.purchase_routes import purchase_bp
 
 
 def create_app(config_class=Config):
@@ -37,7 +39,9 @@ def create_app(config_class=Config):
     app.register_blueprint(sale_bp,      url_prefix="/api/sales")
     app.register_blueprint(dashboard_bp, url_prefix="/api/dashboard")
     app.register_blueprint(stock_bp,     url_prefix="/api/stock")
-    app.register_blueprint(user_bp,      url_prefix="/api/users")  # ← AJOUTE CETTE LIGNE !
+    app.register_blueprint(user_bp,      url_prefix="/api/users")  
+    app.register_blueprint(supplier_bp, url_prefix="/api/suppliers")
+    app.register_blueprint(purchase_bp, url_prefix="/api/purchases")
 
     # ── Gestionnaires d'erreurs globaux ─────────────────────
     @app.errorhandler(404)

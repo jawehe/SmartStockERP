@@ -12,6 +12,8 @@ import ForgotPassword from '../pages/auth/ForgetPassword'
 // Admin pages
 import AdminDashboard from '../pages/admin/AdminDashboard'
 import UsersPage from '../pages/admin/UsersPage'
+import SuppliersPage from '../pages/admin/SuppliersPage'
+import PurchasesPage from '../pages/admin/PurchasesPage'
 // Manager pages 
 import ManagerDashboard from '../pages/manager/ManagerDashboard'
 
@@ -29,7 +31,7 @@ import SettingsPage from '../pages/shared/SettingsPage'
 import { useAuth } from '../hooks/useAuth'
 import { dashboardPathForRole } from './routeConfig'
 import ProfilePage from '../pages/shared/ProfilePage'
-import InventoryPage from '@/pages/shared/InventoryPage'
+import InventoryPage from '../pages/shared/InventoryPage'
 
 function RootRedirect() {
   const { user, loading } = useAuth()
@@ -165,6 +167,16 @@ export default function AppRouter() {
     </RoleGuard>
   } 
 />
+<Route path="/suppliers" element={
+  <RoleGuard roles={['admin', 'manager']}>
+    <SuppliersPage />
+  </RoleGuard>
+} />
+<Route path="/purchases" element={
+  <RoleGuard roles={['admin', 'manager']}>
+    <PurchasesPage />
+  </RoleGuard>
+} />
         </Route>
       </Route>
 

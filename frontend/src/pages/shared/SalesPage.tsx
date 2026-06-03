@@ -1,10 +1,9 @@
 // src/pages/shared/SalesPage.tsx
 import { useEffect, useState, useCallback } from 'react'
 import api from '../../services/api'
-import type { Sale, Client, Product, SaleCartItem, SaleStatus } from '../../types/index'
+import type { Sale, Client, Product, SaleCartItem, SaleStatus,  SaleItem } from '../../types/index'
 import { usePermissions } from '../../hooks/usePermissions'
 import { Button } from '../../components/UI/Button'
-import { Badge } from '../../components/UI/Badge'
 import { Pagination } from '../../components/UI/Table'
 
 // ── Status badge ─────────────────────────────────────────────
@@ -22,27 +21,223 @@ function SaleBadge({ status }: { status: SaleStatus }) {
   )
 }
 
+// ── Edit Sale Modal ──────────────────────────────────────────
+function EditSaleModal({ sale, onClose, onSave }: { 
+  sale: Sale; 
+  onClose: () => void; 
+  onSave: (items: SaleCartItem[]) => void 
+}) {
+const [items, setItems] = useState<SaleCartItem[]>(() => {
+  if (!sale.items) return []
+  return sale.items.map((item: SaleItem) => ({
+    product_id: item.product_id,
+    name: item.product_name || 'Produit',  // ← Valeur par défaut si null
+    sku: '',
+    unit_price: item.unit_price,
+    quantity: item.quantity
+  }))
+})
+  const [search, setSearch] = useState('')
+  const [results, setResults] = useState<Product[]>([])
+
+  const searchProduct = async (q: string) => {
+    setSearch(q)
+    if (!q.trim()) { setResults([]); return }
+    try {
+      const r = await api.get<{ data: Product[] }>(`/products?search=${q}&per_page=5`)
+      setResults(r.data.data || [])
+    } catch { setResults([]) }
+  }
+
+  const addItem = (product: Product) => {
+    setItems(prev => {
+      const existing = prev.find(i => i.product_id === product.id)
+      if (existing) {
+        return prev.map(i => i.product_id === product.id 
+          ? { ...i, quantity: i.quantity + 1 } 
+          : i)
+      }
+      return [...prev, {
+        product_id: product.id,
+        name: product.name,
+        sku: product.sku,
+        unit_price: product.price,
+        quantity: 1
+      }]
+    })
+    setSearch('')
+    setResults([])
+  }
+
+  const updateQty = (productId: number, newQty: number) => {
+    if (newQty < 1) return
+    setItems(prev => prev.map(i => 
+      i.product_id === productId ? { ...i, quantity: newQty } : i
+    ))
+  }
+
+  const removeItem = (productId: number) => {
+    setItems(prev => prev.filter(i => i.product_id !== productId))
+  }
+
+  const subtotal = items.reduce((s, i) => s + i.unit_price * i.quantity, 0)
+  const tax = subtotal * 0.10
+  const total = subtotal + tax
+  const fmt = (n: number) => `$${n.toFixed(2)}`
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+      <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-auto m-4">
+        <div className="sticky top-0 bg-white border-b border-[#e4e9f0] px-6 py-4 flex justify-between items-center">
+          <div>
+            <h2 className="text-xl font-bold text-[#1a2e4a]">Modifier la vente</h2>
+            <p className="text-sm text-[#6b7a99]">#INV-{String(sale.id).padStart(4, '0')}</p>
+          </div>
+          <button onClick={onClose} className="text-[#9aa5bf] hover:text-[#1a2e4a]">✕</button>
+        </div>
+
+        <div className="p-6">
+          {/* Recherche produits */}
+          <div className="mb-6">
+            <div className="relative">
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => searchProduct(e.target.value)}
+                placeholder="Ajouter un produit (SKU ou nom)..."
+                className="w-full px-4 py-2 border border-[#e4e9f0] rounded-lg focus:outline-none focus:border-[#1e4db7]"
+              />
+              {results.length > 0 && (
+                <div className="absolute top-full left-0 right-0 bg-white border rounded-lg shadow-lg z-10 mt-1">
+                  {results.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => addItem(p)}
+                      className="w-full flex justify-between items-center px-4 py-2 hover:bg-gray-50 border-b last:border-0"
+                    >
+                      <span>{p.name}</span>
+                      <span className="text-[#1e4db7] font-semibold">${p.price}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Table des produits */}
+          <table className="w-full border-collapse mb-4">
+            <thead>
+              <tr className="border-b border-[#e4e9f0]">
+                <th className="text-left py-2 px-2 text-xs font-semibold text-[#6b7a99]">PRODUIT</th>
+                <th className="text-left py-2 px-2 text-xs font-semibold text-[#6b7a99]">QUANTITÉ</th>
+                <th className="text-left py-2 px-2 text-xs font-semibold text-[#6b7a99]">PRIX UNIT.</th>
+                <th className="text-left py-2 px-2 text-xs font-semibold text-[#6b7a99]">SOUS-TOTAL</th>
+                <th className="text-left py-2 px-2 text-xs font-semibold text-[#6b7a99]"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="text-center py-8 text-sm text-[#9aa5bf]">
+                    Aucun produit dans cette vente
+                  </td>
+                </tr>
+              ) : (
+                items.map((item) => (
+                  <tr key={item.product_id} className="border-b border-[#e4e9f0]">
+                    <td className="py-2 px-2">
+                      <div className="font-medium text-sm">{item.name}</div>
+                      <div className="text-xs text-[#9aa5bf]">SKU: {item.sku}</div>
+                    </td>
+                    <td className="py-2 px-2">
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => updateQty(item.product_id, item.quantity - 1)}
+                          className="w-6 h-6 border rounded hover:bg-gray-50"
+                        >-</button>
+                        <span className="w-8 text-center">{item.quantity}</span>
+                        <button 
+                          onClick={() => updateQty(item.product_id, item.quantity + 1)}
+                          className="w-6 h-6 border rounded hover:bg-gray-50"
+                        >+</button>
+                      </div>
+                    </td>
+                    <td className="py-2 px-2">{fmt(item.unit_price)}</td>
+                    <td className="py-2 px-2 font-semibold">{fmt(item.unit_price * item.quantity)}</td>
+                    <td className="py-2 px-2">
+                      <button onClick={() => removeItem(item.product_id)} className="text-red-500">🗑</button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+
+          {/* Totaux */}
+          {items.length > 0 && (
+            <div className="flex justify-end mt-4">
+              <div className="w-64">
+                <div className="flex justify-between py-1">
+                  <span className="text-[#6b7a99]">Sous-total</span>
+                  <span>{fmt(subtotal)}</span>
+                </div>
+                <div className="flex justify-between py-1">
+                  <span className="text-[#6b7a99]">TVA (10%)</span>
+                  <span>{fmt(tax)}</span>
+                </div>
+                <div className="flex justify-between py-2 border-t font-bold">
+                  <span>Total</span>
+                  <span className="text-[#1e4db7]">{fmt(total)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="sticky bottom-0 bg-white border-t border-[#e4e9f0] px-6 py-4 flex justify-end gap-3">
+          <Button variant="secondary" onClick={onClose}>Annuler</Button>
+          <Button onClick={() => onSave(items)} disabled={items.length === 0}>
+            Enregistrer les modifications
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Invoice detail side panel ────────────────────────────────
-function InvoicePanel({ sale, onClose, onCancel }: {
-  sale: Sale; onClose: () => void; onCancel: () => void
+// ── Invoice detail side panel ────────────────────────────────
+function InvoicePanel({ sale, onClose, onCancel, onExport }: {
+  sale: Sale; 
+  onClose: () => void; 
+  onCancel: () => void; 
+  onExport: () => void
 }) {
   const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
-  const tax = sale.total_amount * 0
+  const tax = sale.total_amount * 0.10
+  
   return (
-    <div className="w-72 bg-white border-l border-[#e4e9f0] flex flex-col shrink-0 overflow-auto">
-      {/* Header */}
+    <div className="w-96 bg-white border-l border-[#e4e9f0] flex flex-col shrink-0 overflow-auto">
+      {/* Header avec croix de fermeture */}
       <div className="px-5 py-4 border-b border-[#e4e9f0] flex justify-between items-center">
         <div>
           <div className="text-[10px] font-semibold text-[#1e4db7] tracking-wide">SALE DETAILS</div>
           <div className="text-lg font-bold text-[#1a2e4a]">#INV-{String(sale.id).padStart(4,'0')}</div>
         </div>
-        <div className="flex gap-2">
-          <Button size="sm" icon="↓">Export Invoice</Button>
+        <div className="flex gap-2 items-center">
+          <Button size="sm" icon="↓" onClick={onExport}>Export Invoice</Button>
+          {/* ✅ Bouton de fermeture */}
+          <button 
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-[#9aa5bf] hover:bg-gray-100 hover:text-[#1a2e4a] transition-colors"
+            title="Fermer"
+          >
+            ✕
+          </button>
         </div>
       </div>
 
       <div className="flex-1 p-5 flex flex-col gap-5">
-        {/* Client info */}
         {sale.client && (
           <div className="flex items-center gap-3 bg-[#f4f6f9] rounded-xl p-3">
             <div className="w-10 h-10 rounded-xl bg-[#e4e9f0] flex items-center justify-center text-lg shrink-0">🏢</div>
@@ -53,7 +248,6 @@ function InvoicePanel({ sale, onClose, onCancel }: {
           </div>
         )}
 
-        {/* Dates */}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <div className="text-[10px] font-semibold text-[#6b7a99] tracking-wide mb-1">ISSUE DATE</div>
@@ -67,7 +261,6 @@ function InvoicePanel({ sale, onClose, onCancel }: {
           </div>
         </div>
 
-        {/* Line items */}
         {sale.items && sale.items.length > 0 && (
           <div>
             <div className="text-[10px] font-semibold text-[#6b7a99] tracking-wide mb-2">LINE ITEMS</div>
@@ -85,25 +278,22 @@ function InvoicePanel({ sale, onClose, onCancel }: {
           </div>
         )}
 
-        {/* Totals */}
         <div className="border-t border-[#e4e9f0] pt-4">
-          {[
-            { label: 'Subtotal', value: fmt(sale.total_amount) },
-            { label: 'Tax (0%)', value: fmt(tax) },
-          ].map((r) => (
-            <div key={r.label} className="flex justify-between text-sm mb-2">
-              <span className="text-[#6b7a99]">{r.label}</span>
-              <span className="text-[#1a2e4a]">{r.value}</span>
-            </div>
-          ))}
-          <div className="flex justify-between items-center mt-2">
+          <div className="flex justify-between text-sm mb-2">
+            <span className="text-[#6b7a99]">Subtotal</span>
+            <span className="text-[#1a2e4a]">{fmt(sale.total_amount)}</span>
+          </div>
+          <div className="flex justify-between text-sm mb-2">
+            <span className="text-[#6b7a99]">Tax (10%)</span>
+            <span className="text-[#1a2e4a]">{fmt(tax)}</span>
+          </div>
+          <div className="flex justify-between items-center mt-2 pt-2 border-t border-[#e4e9f0]">
             <span className="font-bold text-sm text-[#1a2e4a]">Total Amount</span>
-            <span className="font-bold text-lg text-[#1a2e4a]">{fmt(sale.total_amount)}</span>
+            <span className="font-bold text-lg text-[#1e4db7]">{fmt(sale.total_amount + tax)}</span>
           </div>
         </div>
       </div>
 
-      {/* Actions */}
       <div className="p-4 border-t border-[#e4e9f0] grid grid-cols-2 gap-2">
         <Button variant="secondary" icon="✉" size="sm" className="w-full justify-center">Resend Email</Button>
         <Button variant="secondary" icon="🖨" size="sm" className="w-full justify-center">Print</Button>
@@ -120,15 +310,17 @@ function InvoicePanel({ sale, onClose, onCancel }: {
 
 // ── Create Sale view ─────────────────────────────────────────
 function CreateSale({ onBack, onSuccess }: { onBack: () => void; onSuccess: () => void }) {
-  const [clients, setClients]     = useState<Client[]>([])
-  const [clientId, setClientId]   = useState('')
-  const [note, setNote]           = useState('')
-  const [items, setItems]         = useState<SaleCartItem[]>([])
-  const [search, setSearch]       = useState('')
-  const [results, setResults]     = useState<Product[]>([])
-  const [saving, setSaving]       = useState(false)
-  const [error, setError]         = useState('')
+  const [clients, setClients] = useState<Client[]>([])
+  const [clientId, setClientId] = useState('')
+  const [note, setNote] = useState('')
+  const [items, setItems] = useState<SaleCartItem[]>([])
+  const [search, setSearch] = useState('')
+  const [results, setResults] = useState<Product[]>([])
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
   const [payMethod, setPayMethod] = useState('Cash')
+  const [transactionId] = useState(() => `TXN-${Date.now().toString().slice(-8)}`)
+  
 
   useEffect(() => {
     api.get<{ data: Client[] }>('/clients?per_page=100')
@@ -160,9 +352,9 @@ function CreateSale({ onBack, onSuccess }: { onBack: () => void; onSuccess: () =
   }
 
   const subtotal = items.reduce((s, i) => s + i.unit_price * i.quantity, 0)
-  const tax      = subtotal * 0.10
-  const total    = subtotal + tax
-  const fmt      = (n: number) => `$${n.toFixed(2)}`
+  const tax = subtotal * 0.10
+  const total = subtotal + tax
+  const fmt = (n: number) => `$${n.toFixed(2)}`
 
   const submit = async () => {
     if (!items.length) { setError('Ajoutez au moins un produit.'); return }
@@ -186,7 +378,7 @@ function CreateSale({ onBack, onSuccess }: { onBack: () => void; onSuccess: () =
             ← Back to Sales & Invoices
           </button>
           <h1 className="text-2xl font-bold text-[#1a2e4a]">Create New Sale</h1>
-          <p className="text-sm text-[#6b7a99]">Transaction ID: TXN-{Date.now().toString().slice(-8)}</p>
+          <p className="text-sm text-[#6b7a99]">Transaction ID: {transactionId}</p>
         </div>
         <div className="flex gap-2.5">
           <Button variant="secondary" onClick={onBack}>Draft Save</Button>
@@ -196,7 +388,6 @@ function CreateSale({ onBack, onSuccess }: { onBack: () => void; onSuccess: () =
 
       <div className="grid grid-cols-[1fr_300px] gap-5 items-start">
         <div className="flex flex-col gap-4">
-          {/* Client */}
           <div className="bg-white border border-[#e4e9f0] rounded-xl p-5">
             <div className="flex items-center gap-2 mb-4 font-semibold text-sm text-[#1a2e4a]">
               <span>👤</span> Client & Logistics
@@ -218,7 +409,6 @@ function CreateSale({ onBack, onSuccess }: { onBack: () => void; onSuccess: () =
             </div>
           </div>
 
-          {/* Products */}
           <div className="bg-white border border-[#e4e9f0] rounded-xl p-5">
             <div className="flex items-center gap-2 mb-4 font-semibold text-sm text-[#1a2e4a]">
               <span>🛒</span> Product Selection
@@ -226,7 +416,7 @@ function CreateSale({ onBack, onSuccess }: { onBack: () => void; onSuccess: () =
             <div className="relative mb-4">
               <div className="flex items-center gap-2 border border-[#e4e9f0] rounded-lg px-3 h-10 focus-within:border-[#1e4db7]">
                 <span className="text-[#9aa5bf] text-sm">⊞</span>
-                <input value={search} onChange={(e) => void searchProduct(e.target.value)}
+                <input value={search} onChange={(e) => searchProduct(e.target.value)}
                   placeholder="Search by SKU or scan barcode..."
                   className="flex-1 border-none outline-none text-sm" />
               </div>
@@ -270,13 +460,13 @@ function CreateSale({ onBack, onSuccess }: { onBack: () => void; onSuccess: () =
                           <button onClick={() => updateQty(item.product_id, item.quantity+1)}
                             className="w-6 h-6 border border-[#e4e9f0] rounded text-sm hover:bg-gray-50">+</button>
                         </div>
-                      </td>
+                       </td>
                       <td className="py-3 px-2 text-sm">{fmt(item.unit_price)}</td>
                       <td className="py-3 px-2 text-sm font-semibold">{fmt(item.unit_price * item.quantity)}</td>
                       <td className="py-3 px-2">
                         <button onClick={() => setItems((p) => p.filter((i) => i.product_id !== item.product_id))}
                           className="text-red-400 hover:text-red-600">🗑</button>
-                      </td>
+                       </td>
                     </tr>
                   ))}
                 </tbody>
@@ -295,7 +485,6 @@ function CreateSale({ onBack, onSuccess }: { onBack: () => void; onSuccess: () =
           </div>
         </div>
 
-        {/* Invoice summary */}
         <div className="sticky top-0 flex flex-col gap-3">
           <div className="bg-white border border-[#e4e9f0] rounded-xl p-5">
             <div className="font-semibold text-sm mb-1">Invoice Summary</div>
@@ -325,7 +514,7 @@ function CreateSale({ onBack, onSuccess }: { onBack: () => void; onSuccess: () =
               </div>
             </div>
             {error && <div className="bg-red-50 text-red-600 px-3 py-2 rounded-lg text-xs mt-3">{error}</div>}
-            <button onClick={() => void submit()} disabled={saving || !items.length}
+            <button onClick={() => submit()} disabled={saving || !items.length}
               className={`w-full mt-4 py-3 rounded-lg text-sm font-semibold text-white transition-colors flex items-center justify-center gap-2
                 ${!items.length ? 'bg-gray-300 cursor-not-allowed' : 'bg-[#1e4db7] hover:bg-[#1a3fa0]'}`}>
               🧾 {saving ? 'Création...' : 'Generate Invoice'}
@@ -350,16 +539,19 @@ function CreateSale({ onBack, onSuccess }: { onBack: () => void; onSuccess: () =
 
 // ── Main Sales List ──────────────────────────────────────────
 export default function SalesPage() {
-  const { canDeleteSale } = usePermissions()
-  const [view, setView]           = useState<'list' | 'create'>('list')
-  const [sales, setSales]         = useState<Sale[]>([])
-  const [selected, setSelected]   = useState<Sale | null>(null)
-  const [meta, setMeta]           = useState<{ total: number; total_pages: number; has_next: boolean }>({ total:0, total_pages:1, has_next:false })
-  const [page, setPage]           = useState(1)
-  const [loading, setLoading]     = useState(true)
-  const [dateFrom, setDateFrom]   = useState('')
-  const [dateTo, setDateTo]       = useState('')
+  const [view, setView] = useState<'list' | 'create'>('list')
+  const [sales, setSales] = useState<Sale[]>([])
+  const [selected, setSelected] = useState<Sale | null>(null)
+  const [editingSale, setEditingSale] = useState<Sale | null>(null)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [meta, setMeta] = useState<{ total: number; total_pages: number; has_next: boolean }>({ total:0, total_pages:1, has_next:false })
+  const [page, setPage] = useState(1)
+  const [loading, setLoading] = useState(true)
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const { isAdmin, isManager } = usePermissions()
+  const [showFilterPanel, setShowFilterPanel] = useState(false) 
 
   const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
 
@@ -367,8 +559,8 @@ export default function SalesPage() {
     setLoading(true)
     try {
       const params = new URLSearchParams({ page: String(page), per_page: '10' })
-      if (dateFrom)     params.set('from', dateFrom)
-      if (dateTo)       params.set('to', dateTo)
+      if (dateFrom) params.set('from', dateFrom)
+      if (dateTo) params.set('to', dateTo)
       if (statusFilter) params.set('status', statusFilter)
       const res = await api.get<{ data: Sale[]; meta: typeof meta }>(`/sales?${params.toString()}`)
       setSales(res.data.data ?? [])
@@ -377,7 +569,14 @@ export default function SalesPage() {
     finally { setLoading(false) }
   }, [page, dateFrom, dateTo, statusFilter])
 
-  useEffect(() => { if (view === 'list') load().catch(console.error) }, [load, view])
+  useEffect(() => {
+    const fetchData = async () => {
+      if (view === 'list') {
+        await load()
+      }
+    }
+    fetchData().catch(console.error)
+  }, [load, view])
 
   const selectSale = async (s: Sale) => {
     try {
@@ -391,44 +590,189 @@ export default function SalesPage() {
     if (!window.confirm('Annuler cette vente ?')) return
     try {
       await api.patch(`/sales/${selected.id}/status`, { status: 'cancelled' })
-      setSelected(null); load().catch(console.error)
+      setSelected(null)
+      await load()
     } catch (e: unknown) {
       alert((e as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'Erreur')
     }
   }
 
-  if (view === 'create') {
-    return <CreateSale onBack={() => setView('list')} onSuccess={() => { setView('list'); void load() }} />
+  const openEditSale = (sale: Sale) => {
+    setEditingSale(sale)
+    setShowEditModal(true)
   }
 
-  // KPI totals
-  const totalRev     = sales.reduce((s, sale) => s + sale.total_amount, 0)
-  const pendingAmt   = sales.filter((s) => s.status === 'pending').reduce((acc, s) => acc + s.total_amount, 0)
-  const overdueAmt   = sales.filter((s) => s.status === 'cancelled').reduce((acc, s) => acc + s.total_amount, 0)
+  const saveSaleChanges = async (updatedItems: SaleCartItem[]) => {
+    if (!editingSale) return
+    
+    try {
+      await api.put(`/sales/${editingSale.id}`, {
+        items: updatedItems.map(item => ({
+          product_id: item.product_id,
+          quantity: item.quantity
+        }))
+      })
+      setShowEditModal(false)
+      setEditingSale(null)
+      await load()
+      alert('✅ Vente modifiée avec succès')
+    } catch (error) {
+      console.error('Error updating sale:', error)
+      alert('❌ Erreur lors de la modification')
+    }
+  }
+
+  const exportAllToCSV = async () => {
+    try {
+      const params = new URLSearchParams()
+      if (dateFrom) params.set('from', dateFrom)
+      if (dateTo) params.set('to', dateTo)
+      if (statusFilter) params.set('status', statusFilter)
+      params.set('per_page', '1000')
+      
+      const response = await api.get<{ data: Sale[] }>(`/sales?${params.toString()}`)
+      const allSales = response.data.data || []
+      
+      const headers = ['ID', 'Client', 'Date', 'Total', 'Status']
+      const rows = allSales.map((sale: Sale) => [
+        `#INV-${String(sale.id).padStart(5, '0')}`,
+        sale.client?.name || 'Walk-in',
+        new Date(sale.sale_date).toLocaleDateString('fr-FR'),
+        sale.total_amount,
+        sale.status
+      ])
+      
+      const csvContent = [
+        headers.join(','),
+        ...rows.map((row: (string | number)[]) => row.map((cell: string | number) => `"${cell}"`).join(','))
+      ].join('\n')
+      
+      const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute('download', `sales_export_${new Date().toISOString().split('T')[0]}.csv`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      
+      alert('✅ Export CSV réussi !')
+    } catch (error) {
+      console.error('Export error:', error)
+      alert('❌ Erreur lors de l\'export CSV')
+    }
+  }
+
+  const exportSingleInvoice = async (sale: Sale) => {
+    try {
+      const headers = ['Product', 'Quantity', 'Unit Price', 'Subtotal']
+      const rows = sale.items?.map((item) => [
+        item.product_name,
+        item.quantity,
+        item.unit_price,
+        item.subtotal
+      ]) || []
+      
+      const csvContent = [
+        headers.join(','),
+        ...rows.map((row: (string | number | null)[]) => row.map((cell: string | number | null) => `"${cell ?? ''}"`).join(','))
+      ].join('\n')
+      
+      const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute('download', `invoice_${String(sale.id).padStart(5, '0')}.csv`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      
+      alert('✅ Facture exportée !')
+    } catch (error) {
+      console.error('Export error:', error)
+      alert('❌ Erreur lors de l\'export')
+    }
+  }
+
+  if (view === 'create') {
+    return <CreateSale onBack={() => setView('list')} onSuccess={() => { setView('list'); load() }} />
+  }
+
+  const totalRev = sales.reduce((s, sale) => s + sale.total_amount, 0)
+  const pendingAmt = sales.filter((s) => s.status === 'pending').reduce((acc, s) => acc + s.total_amount, 0)
+  const cancelledAmt = sales.filter((s) => s.status === 'cancelled').reduce((acc, s) => acc + s.total_amount, 0)
 
   return (
     <div className="flex h-[calc(100vh-120px)] gap-0 overflow-hidden">
-      {/* Main list area */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
         <div className="flex justify-between items-start mb-5">
           <div>
             <h1 className="text-2xl font-bold text-[#1a2e4a]">Sales & Invoices</h1>
             <p className="text-sm text-[#6b7a99] mt-0.5">Manage your transactional history and financial records.</p>
           </div>
           <div className="flex gap-2.5">
-            <Button variant="secondary" icon="≡">Filter</Button>
-            <Button variant="secondary" icon="↓">Export All</Button>
+            <Button variant="secondary" icon="≡" onClick={() => setShowFilterPanel(!showFilterPanel)}>Filter {showFilterPanel ? '▲' : '▼'}</Button>
+            {showFilterPanel && (
+  <div className="bg-white border border-[#e4e9f0] rounded-xl p-4 mb-4 grid grid-cols-4 gap-4">
+    <div>
+      <label className="block text-xs font-medium text-[#6b7a99] mb-1">Date début</label>
+      <input
+        type="date"
+        value={dateFrom}
+        onChange={(e) => { setDateFrom(e.target.value); setPage(1) }}
+        className="w-full px-3 py-2 border border-[#e4e9f0] rounded-lg text-sm"
+      />
+    </div>
+    <div>
+      <label className="block text-xs font-medium text-[#6b7a99] mb-1">Date fin</label>
+      <input
+        type="date"
+        value={dateTo}
+        onChange={(e) => { setDateTo(e.target.value); setPage(1) }}
+        className="w-full px-3 py-2 border border-[#e4e9f0] rounded-lg text-sm"
+      />
+    </div>
+    <div>
+      <label className="block text-xs font-medium text-[#6b7a99] mb-1">Statut</label>
+      <select
+        value={statusFilter}
+        onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
+        className="w-full px-3 py-2 border border-[#e4e9f0] rounded-lg text-sm bg-white"
+      >
+        <option value="">Tous</option>
+        <option value="pending">En attente</option>
+        <option value="completed">Terminé</option>
+        <option value="cancelled">Annulé</option>
+      </select>
+    </div>
+    <div className="flex items-end">
+      <button
+        onClick={() => {
+          setDateFrom('')
+          setDateTo('')
+          setStatusFilter('')
+          setPage(1)
+          setShowFilterPanel(false)
+        }}
+        className="w-full py-2 border border-red-200 text-red-600 rounded-lg text-sm hover:bg-red-50 transition-colors"
+      >
+        Réinitialiser
+      </button>
+    </div>
+  </div>
+)}
+            <Button variant="secondary" icon="↓" onClick={exportAllToCSV}>Export All</Button>
             <Button icon="⊕" onClick={() => setView('create')}>New Sale</Button>
           </div>
         </div>
 
-        {/* KPI bar */}
         <div className="grid grid-cols-3 gap-4 mb-4">
           {[
-            { label:'TOTAL REVENUE',  value: fmt(totalRev),    color:'text-[#1e4db7]' },
-            { label:'PENDING AMOUNT', value: fmt(pendingAmt),  color:'text-amber-600' },
-            { label:'OVERDUE',        value: fmt(overdueAmt),  color:'text-red-600' },
+            { label: 'TOTAL REVENUE', value: fmt(totalRev), color: 'text-[#1e4db7]' },
+            { label: 'PENDING AMOUNT', value: fmt(pendingAmt), color: 'text-amber-600' },
+            { label: 'CANCELLED', value: fmt(cancelledAmt), color: 'text-red-600' },
           ].map((k) => (
             <div key={k.label} className="bg-white border border-[#e4e9f0] rounded-xl px-5 py-4">
               <div className="text-[10px] font-semibold text-[#6b7a99] tracking-wide mb-2">{k.label}</div>
@@ -437,7 +781,6 @@ export default function SalesPage() {
           ))}
         </div>
 
-        {/* Filters */}
         <div className="bg-white border border-[#e4e9f0] rounded-xl px-4 py-3 mb-4 flex gap-3 items-center flex-wrap">
           <input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1) }}
             className="px-3 py-2 border border-[#e4e9f0] rounded-lg text-sm outline-none focus:border-[#1e4db7]" />
@@ -456,47 +799,79 @@ export default function SalesPage() {
             Reset
           </button>
           <div className="ml-auto flex gap-1.5">
-            {['Compact','Relaxed'].map((d) => (
-              <button key={d} className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${d==='Compact' ? 'bg-[#e8f0fe] text-[#1e4db7] border-[#e8f0fe]' : 'bg-white text-[#9aa5bf] border-[#e4e9f0]'}`}>{d}</button>
+            {['Compact', 'Relaxed'].map((d) => (
+              <button key={d} className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${d === 'Compact' ? 'bg-[#e8f0fe] text-[#1e4db7] border-[#e8f0fe]' : 'bg-white text-[#9aa5bf] border-[#e4e9f0]'}`}>{d}</button>
             ))}
           </div>
         </div>
 
-        {/* Table */}
         <div className="bg-white border border-[#e4e9f0] rounded-xl overflow-hidden flex-1 flex flex-col">
           <div className="overflow-auto flex-1">
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-[#f4f6f9] border-b border-[#e4e9f0]">
-                  {['INVOICE ID','CLIENT','DATE','AMOUNT','STATUS'].map((h) => (
-                    <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold text-[#6b7a99] tracking-wide">{h}</th>
-                  ))}
+                  <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#6b7a99] tracking-wide">INVOICE ID</th>
+                  <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#6b7a99] tracking-wide">CLIENT</th>
+                  <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#6b7a99] tracking-wide">DATE</th>
+                  <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#6b7a99] tracking-wide">AMOUNT</th>
+                  <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#6b7a99] tracking-wide">STATUS</th>
+                  <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#6b7a99] tracking-wide">ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={5} className="text-center py-12">
+                  <tr><td colSpan={6} className="text-center py-12">
                     <div className="flex justify-center"><div className="w-6 h-6 border-2 border-[#1e4db7] border-t-transparent rounded-full animate-spin" /></div>
                   </td></tr>
                 ) : sales.length === 0 ? (
-                  <tr><td colSpan={5} className="text-center py-12 text-sm text-[#9aa5bf]">Aucune vente trouvée</td></tr>
-                ) : sales.map((s) => (
-                  <tr key={s.id} onClick={() => void selectSale(s)}
-                    className={`border-b border-[#e4e9f0] last:border-0 cursor-pointer transition-colors border-l-2
-                      ${selected?.id === s.id ? 'bg-blue-50 border-l-[#1e4db7]' : 'hover:bg-gray-50/60 border-l-transparent'}`}>
-                    <td className="px-4 py-4">
-                      <div className="text-[#1e4db7] font-semibold text-sm">#INV-{String(s.id).padStart(4,'0')}</div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="font-medium text-sm text-[#1a2e4a]">{s.client?.name ?? 'Walk-in'}</div>
-                    </td>
-                    <td className="px-4 py-4 text-sm text-[#6b7a99]">
-                      {new Date(s.sale_date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}
-                    </td>
-                    <td className="px-4 py-4 text-sm font-semibold">{fmt(s.total_amount)}</td>
-                    <td className="px-4 py-4"><SaleBadge status={s.status} /></td>
-                  </tr>
-                ))}
+                  <tr><td colSpan={6} className="text-center py-12 text-sm text-[#9aa5bf]">Aucune vente trouvée</td></tr>
+                ) : (
+                  sales.map((s) => (
+                    <tr key={s.id} onClick={() => selectSale(s)}
+                      className={`border-b border-[#e4e9f0] last:border-0 cursor-pointer transition-colors border-l-2
+                        ${selected?.id === s.id ? 'bg-blue-50 border-l-[#1e4db7]' : 'hover:bg-gray-50/60 border-l-transparent'}`}>
+                      <td className="px-4 py-4">
+                        <div className="text-[#1e4db7] font-semibold text-sm">#INV-{String(s.id).padStart(4, '0')}</div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="font-medium text-sm text-[#1a2e4a]">{s.client?.name ?? 'Walk-in'}</div>
+                      </td>
+                      <td className="px-4 py-4 text-sm text-[#6b7a99]">
+                        {new Date(s.sale_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </td>
+                      <td className="px-4 py-4 text-sm font-semibold">{fmt(s.total_amount)}</td>
+                      <td className="px-4 py-4"><SaleBadge status={s.status} /></td>
+                      <td className="px-4 py-4">
+                        <div className="flex gap-2">
+                          {s.status === 'pending' && (
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                openEditSale(s)
+                              }}
+                              className="text-amber-600 hover:text-amber-800 transition-colors"
+                              title="Modifier la vente"
+                            >
+                              ✏️
+                            </button>
+                          )}
+                          {(isAdmin || isManager) && s.status !== 'cancelled' && (
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                cancelSale()
+                              }}
+                              className="text-red-500 hover:text-red-700 transition-colors"
+                              title="Annuler la vente"
+                            >
+                              ❌
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -506,10 +881,22 @@ export default function SalesPage() {
         </div>
       </div>
 
-      {/* Invoice detail panel */}
       {selected && (
-        <InvoicePanel sale={selected} onClose={() => setSelected(null)} onCancel={cancelSale} />
+        <InvoicePanel 
+          sale={selected} 
+          onClose={() => setSelected(null)} 
+          onCancel={cancelSale}
+          onExport={() => exportSingleInvoice(selected)}
+        />
       )}
+
+      {showEditModal && editingSale && (
+      <EditSaleModal
+    sale={editingSale}
+    onClose={() => setShowEditModal(false)}
+    onSave={saveSaleChanges}
+  />
+)}
     </div>
   )
 }

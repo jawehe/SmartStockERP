@@ -28,9 +28,9 @@ interface ClientStats {
 }
 
 export default function ClientsPage() {
-  const { isAdmin, isManager } = usePermissions()
+  const { isAdmin, isManager, isSeller } = usePermissions()
   const canDelete = isAdmin
-  const canEdit   = isAdmin || isManager
+  const canEdit   = isAdmin || isManager || isSeller
 
   const [clients, setClients]         = useState<Client[]>([])
   const [meta, setMeta]               = useState<{ total: number; total_pages: number; has_next: boolean }>({ total:0, total_pages:1, has_next:false })
@@ -57,7 +57,12 @@ export default function ClientsPage() {
     finally { setLoading(false) }
   }, [search, page])
 
-  useEffect(() => { load().catch(console.error) }, [load])
+useEffect(() => {
+  const fetchData = async () => {
+    await load()
+  }
+  fetchData().catch(console.error)
+}, [load])
 
   const selectClient = async (c: Client) => {
     setSelected(c)
@@ -100,6 +105,54 @@ export default function ClientsPage() {
   const totalOrders   = clients.reduce((s, c) => s + (c.sale_count ?? 0), 0)
   const avgOrderValue = clients.length ? clients.reduce((s,c) => s+(c.total_spent??0), 0) / Math.max(totalOrders,1) : 0
 
+
+// Ajoute cette fonction après les autres fonctions (vers ligne ~100)
+const exportToCSV = async () => {
+  try {
+    // Récupérer tous les clients (sans pagination)
+    const response = await api.get('/clients?per_page=1000')
+    const allClients = response.data.data || response.data || []
+    
+    // Définir les colonnes CSV
+    const headers = ['ID', 'Name', 'Email', 'Phone', 'Address', 'Total Orders', 'Total Spent', 'Created At']
+    
+    // Convertir les données
+    const rows = allClients.map((client: Client) => [
+      client.id,
+      client.name,
+      client.email || '',
+      client.phone || '',
+      client.address || '',
+      client.sale_count || 0,
+      client.total_spent || 0,
+      new Date(client.created_at).toLocaleDateString()
+    ])
+    
+    // Créer le contenu CSV
+    const csvContent = [
+      headers.join(','),
+      ...rows.map((row: (string | number)[]) => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n')
+    
+    // Ajouter BOM pour supporter les caractères français
+    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' })
+    
+    // Créer le lien de téléchargement
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `clients_export_${new Date().toISOString().split('T')[0]}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    
+    alert('Export CSV réussi ✅')
+  } catch (error) {
+    console.error('Export error:', error)
+    alert('Erreur lors de l\'export CSV')
+  }
+}
   return (
     <div className="flex gap-5 h-[calc(100vh-120px)]">
       {/* Left */}
@@ -111,7 +164,7 @@ export default function ClientsPage() {
             <p className="text-sm text-[#6b7a99] mt-0.5">Manage relationships and track customer lifecycle value.</p>
           </div>
           <div className="flex gap-2.5">
-            <Button variant="secondary" icon="↓">Export CSV</Button>
+            <Button variant="secondary" icon="↓" onClick={exportToCSV}>Export CSV</Button>
             <Button icon="👤" onClick={openAdd}>New Client</Button>
           </div>
         </div>

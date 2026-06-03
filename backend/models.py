@@ -285,6 +285,79 @@ class StockMovement(db.Model):
             "note": self.note,
             "created_at": self.created_at.isoformat()
         }
+# backend/models.py - Ajoute ces classes après la classe StockMovement
 
-    def __repr__(self):
-      return f"<StockMovement {self.movement_type} {self.quantity}>"
+class Supplier(db.Model):
+    __tablename__ = "suppliers"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(150), nullable=False)
+    email = db.Column(db.String(150))
+    phone = db.Column(db.String(50))
+    address = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    purchases = db.relationship("Purchase", backref="supplier", lazy=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "email": self.email,
+            "phone": self.phone,
+            "address": self.address,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "purchase_count": len(self.purchases) if self.purchases else 0
+        }
+
+
+class Purchase(db.Model):
+    __tablename__ = "purchases"
+
+    id = db.Column(db.Integer, primary_key=True)
+    supplier_id = db.Column(db.Integer, db.ForeignKey("suppliers.id"), nullable=False)
+    total_amount = db.Column(db.Numeric(12, 2), default=0)
+    status = db.Column(db.String(20), default="received")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    received_at = db.Column(db.DateTime, nullable=True)
+
+    items = db.relationship("PurchaseItem", backref="purchase", lazy=True, cascade="all, delete-orphan")
+
+    def to_dict(self, include_items=True):
+        data = {
+            "id": self.id,
+            "supplier_id": self.supplier_id,
+            "supplier_name": self.supplier.name if self.supplier else None,
+            "total_amount": float(self.total_amount),
+            "status": self.status,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "received_at": self.received_at.isoformat() if self.received_at else None,
+            "items_count": len(self.items) if self.items else 0
+        }
+        if include_items and self.items:
+            data["items"] = [item.to_dict() for item in self.items]
+        return data
+
+
+class PurchaseItem(db.Model):
+    __tablename__ = "purchase_items"
+
+    id = db.Column(db.Integer, primary_key=True)
+    purchase_id = db.Column(db.Integer, db.ForeignKey("purchases.id"), nullable=False)
+    product_id = db.Column(db.Integer, db.ForeignKey("products.id"), nullable=False)
+    quantity = db.Column(db.Integer, nullable=False)
+    unit_cost = db.Column(db.Numeric(10, 2), nullable=False)
+    subtotal = db.Column(db.Numeric(12, 2), nullable=False)
+
+    product = db.relationship("Product", backref="purchase_items")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "product_id": self.product_id,
+            "product_name": self.product.name if self.product else None,
+            "product_sku": self.product.sku if self.product else None,
+            "quantity": self.quantity,
+            "unit_cost": float(self.unit_cost),
+            "subtotal": float(self.subtotal)
+        }
