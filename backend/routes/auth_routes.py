@@ -20,6 +20,7 @@ from flask_jwt_extended import (
 from extensions import db, bcrypt
 from models import User
 from utils.helpers import success, error, validate_required
+from utils.audit import create_audit_log, log_create, log_update
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -66,6 +67,9 @@ def register():
     db.session.add(user)
     db.session.commit()
 
+    # ✅ Audit Log - Création d'utilisateur
+    log_create("User", user.id, user.name)
+
     return success(user.to_dict(), message="Compte créé avec succès.", status=201)
 
 
@@ -93,6 +97,8 @@ def login():
 
     # Vérification du mot de passe
     if not user or not bcrypt.check_password_hash(user.password_hash, data["password"]):
+        # ✅ Audit Log - Tentative de connexion échouée
+        create_audit_log("LOGIN_FAILED", "Auth", None, f"Tentative échouée pour {data['email']}")
         return error("Email ou mot de passe incorrect.", status=401)
 
     # Claims supplémentaires embarqués dans le JWT
@@ -111,6 +117,9 @@ def login():
         identity=str(user.id),
         additional_claims=additional_claims
     )
+
+    # ✅ Audit Log - Connexion réussie
+    create_audit_log("LOGIN_SUCCESS", "Auth", None, f"Connexion réussie pour {user.email}")
 
     return success(
         data={
@@ -144,6 +153,12 @@ def refresh():
             "email": claims.get("email"),
         }
     )
+    
+    # ✅ Audit Log - Refresh token
+    user = User.query.get(int(identity))
+    if user:
+        create_audit_log("TOKEN_REFRESH", "Auth", None, f"Token rafraîchi pour {user.email}")
+
     return success(
         {"access_token": new_token, "token_type": "Bearer"},
         message="Token renouvelé."
@@ -162,6 +177,13 @@ def logout():
     (supprimer le token du localStorage/cookie).
     Pour une révocation côté serveur, utiliser une blocklist Redis.
     """
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    # ✅ Audit Log - Déconnexion
+    if user:
+        create_audit_log("LOGOUT", "Auth", None, f"Déconnexion pour {user.email}")
+
     return success(message="Déconnexion réussie. Supprimez le token côté client.")
 
 
@@ -187,9 +209,14 @@ def update_profile():
     user_id = int(get_jwt_identity())
     user    = User.query.get_or_404(user_id)
     data    = request.get_json(silent=True) or {}
+    
+    changes = {}
 
     if "name" in data and data["name"].strip():
+        old_name = user.name
         user.name = data["name"].strip()
+        if old_name != user.name:
+            changes["name"] = f"{old_name} → {user.name}"
 
     if "password" in data and data["password"]:
         if len(data["password"]) < 8:
@@ -197,6 +224,12 @@ def update_profile():
         user.password_hash = bcrypt.generate_password_hash(
             data["password"]
         ).decode("utf-8")
+        changes["password"] = "Modifié"
 
     db.session.commit()
+
+    # ✅ Audit Log - Modification du profil
+    if changes:
+        create_audit_log("UPDATE", "Profile", user.id, f"Profil modifié : {changes}")
+
     return success(user.to_dict(), message="Profil mis à jour.")

@@ -361,3 +361,149 @@ class PurchaseItem(db.Model):
             "unit_cost": float(self.unit_cost),
             "subtotal": float(self.subtotal)
         }
+# backend/models.py - Ajouter cette classe
+
+class Notification(db.Model):
+    __tablename__ = "notifications"
+
+    id = db.Column(db.Integer, primary_key=True)
+    message = db.Column(db.String(500), nullable=False)
+    type = db.Column(db.String(50), default='info')  # warning, success, info, danger
+    is_read = db.Column(db.Boolean, default=False)
+    link = db.Column(db.String(200), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "message": self.message,
+            "type": self.type,
+            "is_read": self.is_read,
+            "link": self.link,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "time_ago": self.get_time_ago()
+        }
+
+    def get_time_ago(self):
+        if not self.created_at:
+            return ""
+        diff = datetime.utcnow() - self.created_at
+        if diff.days > 0:
+            return f"Il y a {diff.days} jour(s)"
+        elif diff.seconds > 3600:
+            return f"Il y a {diff.seconds // 3600} heure(s)"
+        elif diff.seconds > 60:
+            return f"Il y a {diff.seconds // 60} minute(s)"
+        else:
+            return "À l'instant"    
+        
+# backend/models.py - Ajouter cette classe
+
+class AuditLog(db.Model):
+    __tablename__ = "audit_logs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    user_name = db.Column(db.String(100), nullable=False)
+    user_role = db.Column(db.String(50), nullable=False)
+    action = db.Column(db.String(50), nullable=False)  # CREATE, UPDATE, DELETE, LOGIN, LOGOUT
+    entity = db.Column(db.String(50), nullable=False)  # Product, Sale, Client, User, etc.
+    entity_id = db.Column(db.Integer, nullable=True)
+    details = db.Column(db.Text, nullable=True)
+    ip_address = db.Column(db.String(45), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relation
+    user = db.relationship("User", backref="audit_logs")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "user_name": self.user_name,
+            "user_role": self.user_role,
+            "action": self.action,
+            "entity": self.entity,
+            "entity_id": self.entity_id,
+            "details": self.details,
+            "ip_address": self.ip_address,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "time_ago": self.get_time_ago()
+        }
+
+    def get_time_ago(self):
+        if not self.created_at:
+            return ""
+        diff = datetime.utcnow() - self.created_at
+        if diff.days > 0:
+            return f"Il y a {diff.days} jour(s)"
+        elif diff.seconds > 3600:
+            return f"Il y a {diff.seconds // 3600} heure(s)"
+        elif diff.seconds > 60:
+            return f"Il y a {diff.seconds // 60} minute(s)"
+        else:
+            return "À l'instant"    
+
+# backend/models.py - Ajouter ces classes
+
+class Warehouse(db.Model):
+    __tablename__ = "warehouses"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    code = db.Column(db.String(20), unique=True, nullable=False)
+    location = db.Column(db.String(200))
+    manager = db.Column(db.String(100))
+    phone = db.Column(db.String(50))
+    email = db.Column(db.String(100))
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relations
+    stocks = db.relationship("WarehouseStock", backref="warehouse", lazy=True, cascade="all, delete-orphan")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "code": self.code,
+            "location": self.location,
+            "manager": self.manager,
+            "phone": self.phone,
+            "email": self.email,
+            "is_active": self.is_active,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "stock_count": len(self.stocks) if self.stocks else 0
+        }
+
+
+class WarehouseStock(db.Model):
+    __tablename__ = "warehouse_stocks"
+
+    id = db.Column(db.Integer, primary_key=True)
+    warehouse_id = db.Column(db.Integer, db.ForeignKey("warehouses.id"), nullable=False)
+    product_id = db.Column(db.Integer, db.ForeignKey("products.id"), nullable=False)
+    quantity = db.Column(db.Integer, default=0)
+    reserved_quantity = db.Column(db.Integer, default=0)  # Stock réservé pour commandes
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relations
+    product = db.relationship("Product", backref="warehouse_stocks")
+
+    __table_args__ = (
+        db.UniqueConstraint('warehouse_id', 'product_id', name='unique_warehouse_product'),
+    )
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "warehouse_id": self.warehouse_id,
+            "warehouse_name": self.warehouse.name if self.warehouse else None,
+            "product_id": self.product_id,
+            "product_name": self.product.name if self.product else None,
+            "product_sku": self.product.sku if self.product else None,
+            "quantity": self.quantity,
+            "reserved_quantity": self.reserved_quantity,
+            "available_quantity": self.quantity - self.reserved_quantity,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }            

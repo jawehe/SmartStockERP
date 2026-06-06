@@ -18,9 +18,14 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Clients',    path: '/clients',           icon: '◎', roles: ['admin','manager','seller']  },
   { label: 'Sales',      path: '/sales',             icon: '◈', roles: ['admin','manager','seller']  },
   { label: 'Analytics',  path: '/analytics',         icon: '⬡', roles: ['admin','manager']           },
-   { label: 'Inventory',   path: '/inventory',          icon: '📦', roles: ['admin','manager'] },
+  { label: 'Inventory',   path: '/inventory',          icon: '📦', roles: ['admin','manager'] },
+  { label: 'Reports',    path: '/reports',           icon: '📊', roles: ['admin','manager'] }, 
   { label: 'Suppliers',   path: '/suppliers',   icon: '🏭', roles: ['admin', 'manager'] },
   { label: 'Purchases',   path: '/purchases',   icon: '📦', roles: ['admin', 'manager'] }, 
+
+  { label: 'Export Reports', path: '/export', icon: '📁', roles: ['admin', 'manager'] },
+  { label: 'Audit Logs', path: '/audit-logs', icon: '📋', roles: ['admin'] },
+  { label: 'Warehouses', path: '/warehouses', icon: '🏭', roles: ['admin', 'manager'] },
   { label: 'Support',    path: '/support',           icon: '?', roles: ['admin','manager','seller'] },
   { label: 'Settings',   path: '/settings',          icon: '⚙', roles: ['admin'] },
  
@@ -36,5 +41,6 @@ export function dashboardPathForRole(role: Role): string {
     case 'admin':   return '/admin/dashboard'
     case 'manager': return '/manager/dashboard'
     case 'seller':  return '/seller/dashboard'
+    default:        return '/login'
   }
 }

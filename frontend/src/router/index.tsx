@@ -14,6 +14,7 @@ import AdminDashboard from '../pages/admin/AdminDashboard'
 import UsersPage from '../pages/admin/UsersPage'
 import SuppliersPage from '../pages/admin/SuppliersPage'
 import PurchasesPage from '../pages/admin/PurchasesPage'
+import AuditLogsPage from '../pages/admin/AuditLogsPage'
 // Manager pages 
 import ManagerDashboard from '../pages/manager/ManagerDashboard'
 
@@ -32,6 +33,9 @@ import { useAuth } from '../hooks/useAuth'
 import { dashboardPathForRole } from './routeConfig'
 import ProfilePage from '../pages/shared/ProfilePage'
 import InventoryPage from '../pages/shared/InventoryPage'
+import ReportsPage from '../pages/shared/ReportsPage'
+import NotificationsPage from '../pages/shared/NotificationsPage'
+import WarehousesPage from '../pages/admin/WarehousesPage'
 
 function RootRedirect() {
   const { user, loading } = useAuth()
@@ -175,6 +179,35 @@ export default function AppRouter() {
 <Route path="/purchases" element={
   <RoleGuard roles={['admin', 'manager']}>
     <PurchasesPage />
+  </RoleGuard>
+} />
+<Route 
+  path="/reports" 
+  element={
+    <RoleGuard roles={['admin', 'manager']}>
+      <ReportsPage />
+    </RoleGuard>
+  } 
+/>
+<Route 
+  path="/notifications" 
+  element={
+    <RoleGuard roles={['admin', 'manager', 'seller']}>
+      <NotificationsPage />
+    </RoleGuard>
+  } 
+/>
+<Route 
+  path="/audit-logs" 
+  element={
+    <RoleGuard roles={['admin']}>
+      <AuditLogsPage />
+    </RoleGuard>
+  } 
+/>
+<Route path="/warehouses" element={
+  <RoleGuard roles={['admin', 'manager']}>
+    <WarehousesPage />
   </RoleGuard>
 } />
         </Route>

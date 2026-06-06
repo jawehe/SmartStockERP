@@ -9,11 +9,14 @@
 #    PATCH  /api/sales/:id/status → changer le statut
 #    DELETE /api/sales/:id       → annuler une vente (remise en stock)
 # ============================================================
-from flask import Blueprint, request
+from flask import Blueprint, request, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from extensions import db
 from models import Sale, SaleItem, Product, Client, StockMovement
 from utils.helpers import success, error, validate_required, paginate_query, role_required
+from services.invoice_service import generate_invoice
+from utils.audit import log_create, log_update, log_delete
+from datetime import datetime
 
 sale_bp = Blueprint("sales", __name__)
 
@@ -63,6 +66,44 @@ def get_sale(sale_id):
     """Détail complet d'une vente avec tous ses items."""
     sale = Sale.query.get_or_404(sale_id, description=f"Vente #{sale_id} introuvable.")
     return success(sale.to_dict(include_items=True))
+
+
+# ─────────────────────────────────────────────────────────────
+#  GET /api/sales/:id/invoice
+# ─────────────────────────────────────────────────────────────
+@sale_bp.route("/<int:sale_id>/invoice", methods=["GET"])
+@jwt_required()
+def generate_sale_invoice(sale_id):
+    """Génère une facture PDF pour une vente"""
+    sale = Sale.query.get_or_404(sale_id)
+    
+    # Préparer les données pour la facture
+    sale_data = {
+        "id": sale.id,
+        "status": sale.status,
+        "total_amount": float(sale.total_amount),
+        "client": sale.client.to_dict() if sale.client else None,
+        "items": []
+    }
+    
+    for item in sale.sale_items:
+        sale_data["items"].append({
+            "product_name": item.product.name if item.product else "Produit",
+            "quantity": item.quantity,
+            "unit_price": float(item.unit_price),
+            "subtotal": float(item.subtotal)
+        })
+    
+    # Générer le PDF
+    pdf_buffer = generate_invoice(sale_data)
+    
+    # Retourner le PDF
+    return send_file(
+        pdf_buffer,
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=f"INVOICE_{sale_id}_{datetime.now().strftime('%Y%m%d')}.pdf"
+    )
 
 
 # ─────────────────────────────────────────────────────────────
@@ -172,7 +213,7 @@ def create_sale():
             # Déduire le stock
             product.adjust_stock(-qty)
 
-            # ✨ AJOUT : Enregistrer le mouvement de stock (OUT)
+            # Enregistrer le mouvement de stock (OUT)
             movement = StockMovement(
                 product_id=product.id,
                 movement_type="OUT",
@@ -188,6 +229,10 @@ def create_sale():
 
         # ✓ COMMIT — tout réussit ou rien
         db.session.commit()
+        
+        # ✅ Audit Log - Création de vente
+        client_name = sale.client.name if sale.client else "Walk-in"
+        log_create("Sale", sale.id, f"Vente #{sale.id} - Client: {client_name} - Total: {sale.total_amount}€")
 
     except ValueError as e:
         db.session.rollback()
@@ -223,6 +268,7 @@ def update_sale_status(sale_id):
     sale   = Sale.query.get_or_404(sale_id)
     data   = request.get_json(silent=True) or {}
     status = data.get("status")
+    old_status = sale.status
 
     allowed_statuses = ("pending", "completed", "cancelled")
     if status not in allowed_statuses:
@@ -241,7 +287,7 @@ def update_sale_status(sale_id):
                 # Remettre le stock
                 item.product.adjust_stock(+item.quantity)
                 
-                # ✨ AJOUT : Enregistrer le mouvement de stock (IN)
+                # Enregistrer le mouvement de stock (IN)
                 movement = StockMovement(
                     product_id=item.product_id,
                     movement_type="IN",
@@ -252,6 +298,10 @@ def update_sale_status(sale_id):
 
         sale.status = status
         db.session.commit()
+        
+        # ✅ Audit Log - Changement de statut
+        changes = {"status": f"{old_status} → {status}"}
+        log_update("Sale", sale_id, changes)
 
     except Exception as e:
         db.session.rollback()
@@ -275,6 +325,7 @@ def delete_sale(sale_id):
     Si la vente est 'completed', remet le stock à jour avant suppression.
     """
     sale = Sale.query.get_or_404(sale_id)
+    sale_info = f"Vente #{sale.id} - Client: {sale.client.name if sale.client else 'Walk-in'}"
 
     try:
         if sale.status != "cancelled":
@@ -282,7 +333,7 @@ def delete_sale(sale_id):
                 # Remettre le stock
                 item.product.adjust_stock(+item.quantity)
                 
-                # ✨ AJOUT : Enregistrer le mouvement de stock (IN)
+                # Enregistrer le mouvement de stock (IN)
                 movement = StockMovement(
                     product_id=item.product_id,
                     movement_type="IN",
@@ -293,6 +344,9 @@ def delete_sale(sale_id):
 
         db.session.delete(sale)
         db.session.commit()
+        
+        # ✅ Audit Log - Suppression de vente
+        log_delete("Sale", sale_id, sale_info)
 
     except Exception as e:
         db.session.rollback()

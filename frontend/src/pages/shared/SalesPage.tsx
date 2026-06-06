@@ -207,11 +207,12 @@ const [items, setItems] = useState<SaleCartItem[]>(() => {
 
 // ── Invoice detail side panel ────────────────────────────────
 // ── Invoice detail side panel ────────────────────────────────
-function InvoicePanel({ sale, onClose, onCancel, onExport }: {
+function InvoicePanel({ sale, onClose, onCancel, onExport, onPDF }: {
   sale: Sale; 
   onClose: () => void; 
   onCancel: () => void; 
-  onExport: () => void
+  onExport: () => void;
+  onPDF: () => void;
 }) {
   const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
   const tax = sale.total_amount * 0.10
@@ -225,15 +226,9 @@ function InvoicePanel({ sale, onClose, onCancel, onExport }: {
           <div className="text-lg font-bold text-[#1a2e4a]">#INV-{String(sale.id).padStart(4,'0')}</div>
         </div>
         <div className="flex gap-2 items-center">
-          <Button size="sm" icon="↓" onClick={onExport}>Export Invoice</Button>
-          {/* ✅ Bouton de fermeture */}
-          <button 
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-[#9aa5bf] hover:bg-gray-100 hover:text-[#1a2e4a] transition-colors"
-            title="Fermer"
-          >
-            ✕
-          </button>
+          <Button size="sm" icon="📄" onClick={onPDF}>PDF Invoice</Button>
+           <Button size="sm" icon="↓" onClick={onExport}>Export CSV</Button>
+           <button onClick={onClose} className="...">✕</button>
         </div>
       </div>
 
@@ -621,6 +616,29 @@ export default function SalesPage() {
       alert('❌ Erreur lors de la modification')
     }
   }
+  // Dans chaque page (ProductsPage, SalesPage, ClientsPage, PurchasesPage)
+
+const exportToExcel = async () => {
+  try {
+    const response = await api.get('/export/products', {
+      responseType: 'blob'
+    })
+    
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `products_${new Date().toISOString().split('T')[0]}.xlsx`)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+    
+    alert('✅ Export Excel réussi !')
+  } catch (error) {
+    console.error('Export error:', error)
+    alert('❌ Erreur lors de l\'export Excel')
+  }
+}
 
   const exportAllToCSV = async () => {
     try {
@@ -695,6 +713,29 @@ export default function SalesPage() {
       alert('❌ Erreur lors de l\'export')
     }
   }
+  // Ajouter cette fonction après exportSingleInvoice
+const downloadPDF = async (sale: Sale) => {
+  try {
+    const response = await api.get(`/sales/${sale.id}/invoice`, {
+      responseType: 'blob'
+    })
+    
+    // Créer un lien de téléchargement
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `INVOICE_${sale.id}_${new Date().toISOString().split('T')[0]}.pdf`)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+    
+    alert('✅ Facture PDF générée avec succès!')
+  } catch (error) {
+    console.error('Error downloading invoice:', error)
+    alert('❌ Erreur lors de la génération de la facture')
+  }
+}
 
   if (view === 'create') {
     return <CreateSale onBack={() => setView('list')} onSuccess={() => { setView('list'); load() }} />
@@ -764,6 +805,10 @@ export default function SalesPage() {
   </div>
 )}
             <Button variant="secondary" icon="↓" onClick={exportAllToCSV}>Export All</Button>
+            <Button variant="secondary" icon="📊" onClick={exportToExcel}>
+  Export Excel
+</Button>
+
             <Button icon="⊕" onClick={() => setView('create')}>New Sale</Button>
           </div>
         </div>
@@ -882,13 +927,14 @@ export default function SalesPage() {
       </div>
 
       {selected && (
-        <InvoicePanel 
-          sale={selected} 
-          onClose={() => setSelected(null)} 
-          onCancel={cancelSale}
-          onExport={() => exportSingleInvoice(selected)}
-        />
-      )}
+    <InvoicePanel 
+    sale={selected} 
+    onClose={() => setSelected(null)} 
+    onCancel={cancelSale}
+    onExport={() => exportSingleInvoice(selected)}
+    onPDF={() => downloadPDF(selected)}
+  />
+)}
 
       {showEditModal && editingSale && (
       <EditSaleModal

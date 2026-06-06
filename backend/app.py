@@ -18,6 +18,13 @@ from routes.user_routes      import user_bp  # ← Déjà importé
 from routes.stock_routes import stock_bp
 from routes.supplier_routes import supplier_bp
 from routes.purchase_routes import purchase_bp
+from routes.reports_routes import reports_bp
+from routes.notification_routes import notification_bp
+from routes.export_routes import export_bp
+from routes.audit_routes import audit_bp
+from routes.warehouse_routes import warehouse_bp
+from routes.analytics_routes import analytics_bp
+from routes.ai_routes import ai_bp
 
 
 def create_app(config_class=Config):
@@ -42,6 +49,13 @@ def create_app(config_class=Config):
     app.register_blueprint(user_bp,      url_prefix="/api/users")  
     app.register_blueprint(supplier_bp, url_prefix="/api/suppliers")
     app.register_blueprint(purchase_bp, url_prefix="/api/purchases")
+    app.register_blueprint(reports_bp, url_prefix="/api/reports")
+    app.register_blueprint(notification_bp, url_prefix="/api/notifications")
+    app.register_blueprint(export_bp, url_prefix="/api/export")
+    app.register_blueprint(audit_bp, url_prefix="/api/audit")
+    app.register_blueprint(warehouse_bp, url_prefix="/api/warehouses")
+    app.register_blueprint(analytics_bp, url_prefix="/api/analytics")
+    app.register_blueprint(ai_bp, url_prefix="/api/ai")
 
     # ── Gestionnaires d'erreurs globaux ─────────────────────
     @app.errorhandler(404)

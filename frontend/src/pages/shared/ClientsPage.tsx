@@ -105,7 +105,29 @@ useEffect(() => {
   const totalOrders   = clients.reduce((s, c) => s + (c.sale_count ?? 0), 0)
   const avgOrderValue = clients.length ? clients.reduce((s,c) => s+(c.total_spent??0), 0) / Math.max(totalOrders,1) : 0
 
+// Dans chaque page (ProductsPage, SalesPage, ClientsPage, PurchasesPage)
 
+const exportToExcel = async () => {
+  try {
+    const response = await api.get('/export/products', {
+      responseType: 'blob'
+    })
+    
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `products_${new Date().toISOString().split('T')[0]}.xlsx`)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+    
+    alert('✅ Export Excel réussi !')
+  } catch (error) {
+    console.error('Export error:', error)
+    alert('❌ Erreur lors de l\'export Excel')
+  }
+}
 // Ajoute cette fonction après les autres fonctions (vers ligne ~100)
 const exportToCSV = async () => {
   try {
@@ -165,6 +187,8 @@ const exportToCSV = async () => {
           </div>
           <div className="flex gap-2.5">
             <Button variant="secondary" icon="↓" onClick={exportToCSV}>Export CSV</Button>
+            <Button variant="secondary" icon="📊" onClick={exportToExcel}>Export Excel</Button>
+
             <Button icon="👤" onClick={openAdd}>New Client</Button>
           </div>
         </div>

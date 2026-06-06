@@ -1,8 +1,10 @@
+# backend/routes/stock_routes.py
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
 from models import Product, StockMovement
 from extensions import db
 from sqlalchemy import func
+from utils.notifications import check_low_stock_notifications  # ← Ajouter cet import
 
 stock_bp = Blueprint("stock", __name__)
 
@@ -35,6 +37,9 @@ def add_stock():
 
     db.session.add(movement)
     db.session.commit()
+    
+    # ✅ Vérifier et créer des notifications pour stocks faibles
+    check_low_stock_notifications()
 
     return jsonify({
         "message": f"{qty} unités ajoutées au stock",
@@ -75,6 +80,9 @@ def remove_stock():
 
     db.session.add(movement)
     db.session.commit()
+    
+    # ✅ Vérifier et créer des notifications pour stocks faibles
+    check_low_stock_notifications()
 
     return jsonify({
         "message": f"{qty} unités retirées du stock",
@@ -108,6 +116,9 @@ def adjust_stock():
     )
     db.session.add(movement)
     db.session.commit()
+    
+    # ✅ Vérifier et créer des notifications pour stocks faibles
+    check_low_stock_notifications()
 
     return jsonify({
         "message": f"Stock ajusté de {old_qty} à {new_qty}",
@@ -150,7 +161,7 @@ def get_movements():
 
 
 # ═════════════════════════════════════════════════════════════
-# STATISTIQUES DU STOCK (AJOUTÉ !)
+# STATISTIQUES DU STOCK
 # ═════════════════════════════════════════════════════════════
 @stock_bp.route("/stats", methods=["GET"])
 @jwt_required()
